@@ -12,6 +12,21 @@
   [source]
   (document/open-pdf source))
 
+(defn metadata
+  "Document metadata map. See `pdfplumber.document/metadata`."
+  [doc]
+  (document/metadata doc))
+
+(defn pages
+  "Vector of page maps. See `pdfplumber.document/pages`."
+  [doc]
+  (document/pages doc))
+
+(defn page
+  "Page map for 1-based page number `n`. See `pdfplumber.document/page`."
+  [doc n]
+  (document/page doc n))
+
 (defmacro with-pdf
   "Open `source`, bind the document handle to `binding`, evaluate `body`, and
    always close the document on exit (including on exception).

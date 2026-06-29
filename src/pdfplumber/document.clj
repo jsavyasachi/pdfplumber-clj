@@ -2,10 +2,12 @@
   "Document loading and the error model. The PDFBox parse boundary lives here;
    higher namespaces work with the returned PDDocument handle."
   (:import [org.apache.pdfbox Loader]
-           [org.apache.pdfbox.pdmodel PDDocument]
+           [org.apache.pdfbox.pdmodel PDDocument PDDocumentInformation PDPage]
+           [org.apache.pdfbox.pdmodel.common PDRectangle]
            [org.apache.pdfbox.io RandomAccessReadBuffer]
            [org.apache.pdfbox.pdmodel.encryption InvalidPasswordException]
-           [java.io File InputStream IOException]))
+           [java.io File InputStream IOException]
+           [java.util Calendar]))
 
 (set! *warn-on-reflection* true)
 
@@ -52,3 +54,52 @@
              {:cause-class (.getName (class e))
               :cause-message (.getMessage e)}
              e))))
+
+(defn- cal->iso [^Calendar c]
+  (when c (str (.toInstant c))))
+
+(defn metadata
+  "Document metadata as a map. Always includes `:page-count`; document-info
+   fields (`:title` `:author` `:subject` `:keywords` `:creator` `:producer`
+   `:creation-date` `:modification-date`) are included only when present. Dates
+   are ISO-8601 strings."
+  [^PDDocument doc]
+  (let [info ^PDDocumentInformation (.getDocumentInformation doc)]
+    (into {:page-count (.getNumberOfPages doc)}
+          (remove (comp nil? val))
+          {:title (.getTitle info)
+           :author (.getAuthor info)
+           :subject (.getSubject info)
+           :keywords (.getKeywords info)
+           :creator (.getCreator info)
+           :producer (.getProducer info)
+           :creation-date (cal->iso (.getCreationDate info))
+           :modification-date (cal->iso (.getModificationDate info))})))
+
+(defn- page-map [^PDPage page ^long n]
+  (let [box ^PDRectangle (.getMediaBox page)
+        w (double (.getWidth box))
+        h (double (.getHeight box))]
+    {:page-number n
+     :width w
+     :height h
+     :rotation (.getRotation page)
+     :bbox [0.0 0.0 w h]}))
+
+(defn pages
+  "Vector of page maps (`:page-number` `:width` `:height` `:rotation` `:bbox`),
+   in document order with 1-based page numbers."
+  [^PDDocument doc]
+  (mapv #(page-map (.getPage doc %) (inc %))
+        (range (.getNumberOfPages doc))))
+
+(defn page
+  "The page map for 1-based page number `n`. Throws `ex-info`
+   `:pdfplumber/error :page-not-found` (with `:page` and `:page-count`) when out
+   of range."
+  [^PDDocument doc n]
+  (let [pc (.getNumberOfPages doc)]
+    (if (and (integer? n) (<= 1 n pc))
+      (page-map (.getPage doc (dec n)) n)
+      (fail! :page-not-found (str "No page " n " (document has " pc ")")
+             {:page n :page-count pc}))))

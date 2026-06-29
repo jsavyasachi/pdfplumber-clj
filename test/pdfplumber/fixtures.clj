@@ -2,7 +2,7 @@
   "Deterministic fixture-PDF generators for tests (PDFBox writer side).
    Generating fixtures in code avoids opaque committed binaries and lets tests
    assert against known positions. Generated with PDFBox 3.0.x."
-  (:import [org.apache.pdfbox.pdmodel PDDocument PDPage PDPageContentStream]
+  (:import [org.apache.pdfbox.pdmodel PDDocument PDDocumentInformation PDPage PDPageContentStream]
            [org.apache.pdfbox.pdmodel.common PDRectangle]
            [org.apache.pdfbox.pdmodel.font PDType1Font Standard14Fonts$FontName]
            [org.apache.pdfbox.pdmodel.encryption AccessPermission StandardProtectionPolicy]
@@ -47,6 +47,20 @@
           (.newLineAtOffset cs (float 72.0) (float 700.0))
           (.showText cs ^String t)
           (.endText cs))))
+    (->bytes doc)))
+
+(defn pdf-with-metadata
+  "Single-page PDF with the given document information set. `info` keys:
+   :title :author :subject :keywords :creator. Returns byte[]."
+  ^bytes [{:keys [title author subject keywords creator]}]
+  (with-open [doc (PDDocument.)]
+    (.addPage doc (PDPage. PDRectangle/LETTER))
+    (let [pdi ^PDDocumentInformation (.getDocumentInformation doc)]
+      (when title (.setTitle pdi title))
+      (when author (.setAuthor pdi author))
+      (when subject (.setSubject pdi subject))
+      (when keywords (.setKeywords pdi keywords))
+      (when creator (.setCreator pdi creator)))
     (->bytes doc)))
 
 (defn encrypted-pdf
