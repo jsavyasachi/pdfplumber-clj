@@ -14,6 +14,8 @@ All notable changes to this project are documented here. The format follows
   `:x-tolerance`, and `:y-tolerance` options.
 - Object extraction: `objects` (lines, rectangles, curves), with line
   `:orientation` classification and `:page`/`:types`/`:bbox` options.
+- `crop-page` page views, accepted by `chars`/`words`/`text`/`objects` in place
+  of a document handle to restrict extraction to a bbox.
 - `pdfplumber.geometry`: bbox helpers and PDFBox↔top-left coordinate conversion.
 
 [Unreleased]: https://github.com/jsavyasachi/pdfplumber-clj/commits/main

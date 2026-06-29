@@ -4,7 +4,8 @@
   (:refer-clojure :exclude [chars])
   (:require [pdfplumber.document :as document]
             [pdfplumber.text :as text]
-            [pdfplumber.objects :as objects])
+            [pdfplumber.objects :as objects]
+            [pdfplumber.page :as page])
   (:import [org.apache.pdfbox.pdmodel PDDocument]))
 
 (set! *warn-on-reflection* true)
@@ -30,26 +31,40 @@
   [doc n]
   (document/page doc n))
 
+(defn crop-page
+  "A cropped page view (restricts extraction to a bbox). See
+   `pdfplumber.page/crop-page`."
+  [doc opts]
+  (page/crop-page doc opts))
+
+(defn page-view?
+  "True when `x` is a cropped page view. See `pdfplumber.page/page-view?`."
+  [x]
+  (page/page-view? x))
+
 (defn chars
-  "Vector of character maps. See `pdfplumber.text/chars`."
-  ([doc] (text/chars doc))
-  ([doc opts] (text/chars doc opts)))
+  "Vector of character maps. Accepts a document handle or a cropped page view.
+   See `pdfplumber.text/chars`."
+  ([source] (chars source {}))
+  ([source opts] (let [[doc o] (page/resolve-source source opts)] (text/chars doc o))))
 
 (defn words
-  "Vector of word maps. See `pdfplumber.text/words`."
-  ([doc] (text/words doc))
-  ([doc opts] (text/words doc opts)))
+  "Vector of word maps. Accepts a document handle or a cropped page view. See
+   `pdfplumber.text/words`."
+  ([source] (words source {}))
+  ([source opts] (let [[doc o] (page/resolve-source source opts)] (text/words doc o))))
 
 (defn text
-  "Reconstructed text string. See `pdfplumber.text/text`."
-  ([doc] (text/text doc))
-  ([doc opts] (text/text doc opts)))
+  "Reconstructed text string. Accepts a document handle or a cropped page view.
+   See `pdfplumber.text/text`."
+  ([source] (text source {}))
+  ([source opts] (let [[doc o] (page/resolve-source source opts)] (text/text doc o))))
 
 (defn objects
-  "Vector of geometric object maps (lines, rects, curves). See
-   `pdfplumber.objects/objects`."
-  ([doc] (objects/objects doc))
-  ([doc opts] (objects/objects doc opts)))
+  "Vector of geometric object maps (lines, rects, curves). Accepts a document
+   handle or a cropped page view. See `pdfplumber.objects/objects`."
+  ([source] (objects source {}))
+  ([source opts] (let [[doc o] (page/resolve-source source opts)] (objects/objects doc o))))
 
 (defmacro with-pdf
   "Open `source`, bind the document handle to `binding`, evaluate `body`, and
