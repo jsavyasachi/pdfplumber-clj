@@ -6,7 +6,8 @@
  :aliases
  {:test
   {:extra-paths ["test" "dev"]
-   :extra-deps {lambdaisland/kaocha {:mvn/version "1.91.1392"}}
+   :extra-deps {lambdaisland/kaocha {:mvn/version "1.91.1392"}
+                org.slf4j/slf4j-nop {:mvn/version "2.0.16"}}
    :main-opts ["-m" "kaocha.runner"]}
 
   ;; Clojure version overrides for the CI matrix:
