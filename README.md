@@ -13,8 +13,6 @@ built on [Apache PDFBox](https://pdfbox.apache.org).
 
 <a href="https://clojure.org"><img src="https://img.shields.io/badge/Clojure-5881D8?style=flat&logo=clojure&logoColor=white" alt="Clojure" /></a>
 <a href="https://pdfbox.apache.org"><img src="https://img.shields.io/badge/Apache_PDFBox-D22128?style=flat&logo=apache&logoColor=white" alt="Apache PDFBox" /></a>
-<a href="https://github.com/lambdaisland/kaocha"><img src="https://img.shields.io/badge/Kaocha-2A2F3A?style=flat&logo=clojure&logoColor=white" alt="Kaocha" /></a>
-<a href="https://github.com/features/actions"><img src="https://img.shields.io/badge/GitHub_Actions-2088FF?style=flat&logo=githubactions&logoColor=white" alt="GitHub Actions" /></a>
 
 ## Status
 
