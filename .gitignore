@@ -6,3 +6,4 @@
 .nrepl-port
 .cider-repl-history
 /corpus
+/.venv
