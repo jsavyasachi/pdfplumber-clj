@@ -1,7 +1,9 @@
 (ns pdfplumber.core
   "Public API for pdfplumber-clj: open PDFs and extract text, words, characters,
    geometric objects, and tables as plain Clojure data."
-  (:require [pdfplumber.document :as document])
+  (:refer-clojure :exclude [chars])
+  (:require [pdfplumber.document :as document]
+            [pdfplumber.text :as text])
   (:import [org.apache.pdfbox.pdmodel PDDocument]))
 
 (set! *warn-on-reflection* true)
@@ -26,6 +28,21 @@
   "Page map for 1-based page number `n`. See `pdfplumber.document/page`."
   [doc n]
   (document/page doc n))
+
+(defn chars
+  "Vector of character maps. See `pdfplumber.text/chars`."
+  ([doc] (text/chars doc))
+  ([doc opts] (text/chars doc opts)))
+
+(defn words
+  "Vector of word maps. See `pdfplumber.text/words`."
+  ([doc] (text/words doc))
+  ([doc opts] (text/words doc opts)))
+
+(defn text
+  "Reconstructed text string. See `pdfplumber.text/text`."
+  ([doc] (text/text doc))
+  ([doc opts] (text/text doc opts)))
 
 (defmacro with-pdf
   "Open `source`, bind the document handle to `binding`, evaluate `body`, and
