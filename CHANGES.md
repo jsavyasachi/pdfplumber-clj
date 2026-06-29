@@ -16,6 +16,8 @@ All notable changes to this project are documented here. The format follows
   `:orientation` classification and `:page`/`:types`/`:bbox` options.
 - `crop-page` page views, accepted by `chars`/`words`/`text`/`objects` in place
   of a document handle to restrict extraction to a bbox.
+- Table extraction: `extract-table`/`extract-tables` with the `:lines` strategy
+  (grid reconstructed from ruling lines), returning `:rows`/`:cells`/`:debug`.
 - `pdfplumber.geometry`: bbox helpers and PDFBox↔top-left coordinate conversion.
 
 [Unreleased]: https://github.com/jsavyasachi/pdfplumber-clj/commits/main

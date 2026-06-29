@@ -64,6 +64,30 @@
         (.addRect cs (float 100) (float 400) (float 200) (float 100)) (.stroke cs)))
     (->bytes doc)))
 
+(defn table-pdf
+  "Single US-Letter page with a 2x2 ruled table: vertical rules at x=72/300/540,
+   horizontal rules at y=700/670/640, and the cells Date|Amount over
+   2026-01-01|$10.00. Returns byte[]."
+  ^bytes []
+  (with-open [doc (PDDocument.)]
+    (let [page (PDPage. PDRectangle/LETTER)]
+      (.addPage doc page)
+      (with-open [cs (PDPageContentStream. doc page)]
+        (.setLineWidth cs (float 1.0))
+        (doseq [y [700 670 640]]
+          (.moveTo cs (float 72) (float y)) (.lineTo cs (float 540) (float y)) (.stroke cs))
+        (doseq [x [72 300 540]]
+          (.moveTo cs (float x) (float 640)) (.lineTo cs (float x) (float 700)) (.stroke cs))
+        (let [font (helvetica)]
+          (doseq [[s x y] [["Date" 80 678] ["Amount" 308 678]
+                           ["2026-01-01" 80 648] ["$10.00" 308 648]]]
+            (.beginText cs)
+            (.setFont cs font (float 10))
+            (.newLineAtOffset cs (float x) (float y))
+            (.showText cs ^String s)
+            (.endText cs)))))
+    (->bytes doc)))
+
 (defn pdf-with-metadata
   "Single-page PDF with the given document information set. `info` keys:
    :title :author :subject :keywords :creator. Returns byte[]."

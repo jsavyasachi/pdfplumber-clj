@@ -5,6 +5,7 @@
   (:require [pdfplumber.document :as document]
             [pdfplumber.text :as text]
             [pdfplumber.objects :as objects]
+            [pdfplumber.table :as table]
             [pdfplumber.page :as page])
   (:import [org.apache.pdfbox.pdmodel PDDocument]))
 
@@ -65,6 +66,18 @@
    handle or a cropped page view. See `pdfplumber.objects/objects`."
   ([source] (objects source {}))
   ([source opts] (let [[doc o] (page/resolve-source source opts)] (objects/objects doc o))))
+
+(defn extract-table
+  "Extract a single table. Accepts a document handle or a cropped page view. See
+   `pdfplumber.table/extract-table`."
+  ([source] (extract-table source {}))
+  ([source opts] (let [[doc o] (page/resolve-source source opts)] (table/extract-table doc o))))
+
+(defn extract-tables
+  "Extract tables as a vector. Accepts a document handle or a cropped page view.
+   See `pdfplumber.table/extract-tables`."
+  ([source] (extract-tables source {}))
+  ([source opts] (let [[doc o] (page/resolve-source source opts)] (table/extract-tables doc o))))
 
 (defmacro with-pdf
   "Open `source`, bind the document handle to `binding`, evaluate `body`, and
