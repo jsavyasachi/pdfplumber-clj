@@ -1,0 +1,44 @@
+name: deps
+
+# Weekly dependency check via antq (https://github.com/liquidz/antq). antq reads
+# deps.edn natively. PRs opened by the default GITHUB_TOKEN do not trigger the
+# test workflow (GitHub anti-recursion), so validate locally before merging.
+on:
+  schedule:
+    - cron: '23 6 * * 1'   # Mondays 06:23 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  antq:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: DeLaGuardo/setup-clojure@13.4
+        with:
+          cli: latest
+      - name: Upgrade outdated dependencies
+        run: >
+          clojure -Sdeps '{:deps {com.github.liquidz/antq {:mvn/version "2.11.1276"}}}'
+          -M -m antq.core --upgrade --force --skip=github-action
+          --exclude org.clojure/clojure
+      - name: Open pull request
+        uses: peter-evans/create-pull-request@v7
+        with:
+          branch: deps/antq
+          delete-branch: true
+          commit-message: 'chore(deps): bump outdated dependencies'
+          title: 'chore(deps): bump outdated dependencies'
+          body: |
+            Automated dependency check by [antq](https://github.com/liquidz/antq).
+
+            Review the bumps and confirm CI is green before merging. Note: this PR
+            was opened by the default token, so the test workflow did not run on it.
+          labels: dependencies

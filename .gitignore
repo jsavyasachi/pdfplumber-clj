@@ -5,3 +5,4 @@
 *.class
 .nrepl-port
 .cider-repl-history
+/corpus
