@@ -24,7 +24,12 @@
                 :basis @basis
                 :src-dirs ["src"]
                 :scm {:url "https://github.com/jsavyasachi/pdfplumber-clj"
-                      :tag (str "v" version)}})
+                      :tag (str "v" version)}
+                :pom-data [[:licenses
+                            [:license
+                             [:name "Eclipse Public License 2.0"]
+                             [:url "https://www.eclipse.org/legal/epl-2.0/"]
+                             [:distribution "repo"]]]]})
   (b/copy-dir {:src-dirs ["src" "resources"] :target-dir class-dir})
   (b/jar {:class-dir class-dir :jar-file jar-file})
   (println "Wrote" jar-file))
