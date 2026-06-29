@@ -102,16 +102,88 @@
              :vertical-lines (count (:v e))
              :cells (count cells)}}))
 
+;; --- :text strategy -------------------------------------------------------
+
+(defn- clusters
+  "Group sorted `vals` into runs where neighbours are within `tol`."
+  [vals tol]
+  (->> (sort vals)
+       (reduce (fn [acc v]
+                 (if (and (seq acc) (<= (- v (peek (peek acc))) tol))
+                   (conj (pop acc) (conj (peek acc) v))
+                   (conj acc [v])))
+               [])))
+
+(defn- text-rows [words y-tol]
+  (->> (sort-by :top words)
+       (reduce (fn [acc w]
+                 (let [row (peek acc)
+                       rtop (some-> row first :top)]
+                   (if (and rtop (<= (Math/abs (- (double (:top w)) (double rtop))) y-tol))
+                     (conj (pop acc) (conj row w))
+                     (conj acc [w]))))
+               [])))
+
+(defn- column-edges
+  "Left edges of columns: clusters of word `:x0` supported by at least
+   `min-vertical` words."
+  [words x-tol min-vertical]
+  (->> (clusters (map :x0 words) x-tol)
+       (filter #(>= (count %) min-vertical))
+       (mapv #(/ (reduce + %) (count %)))
+       sort
+       vec))
+
+(defn- column-bands [edges max-x]
+  (mapv vec (partition 2 1 (conj edges (inc (double max-x))))))
+
+(defn- center-x [w] (/ (+ (double (:x0 w)) (:x1 w)) 2))
+
+(defn- text-cell [row [left right]]
+  (let [ws (filter #(let [cx (center-x %)] (and (<= left cx) (< cx right))) row)]
+    {:text (->> ws (sort-by :x0) (map :text) (str/join " "))
+     :bbox (when (seq ws)
+             [(reduce min (map :x0 ws)) (reduce min (map :top ws))
+              (reduce max (map :x1 ws)) (reduce max (map :bottom ws))])}))
+
+(defn- words-bbox [words]
+  (when (seq words)
+    [(reduce min (map :x0 words)) (reduce min (map :top words))
+     (reduce max (map :x1 words)) (reduce max (map :bottom words))]))
+
+(defn- text-table [doc opts]
+  (let [{:keys [text-x-tolerance text-y-tolerance min-words-vertical min-words-horizontal]
+         :or {text-x-tolerance default-tolerance text-y-tolerance default-tolerance
+              min-words-vertical 3 min-words-horizontal 1}} opts
+        words (text/words doc opts)
+        rows (text-rows words text-y-tolerance)
+        edges (column-edges words text-x-tolerance min-words-vertical)
+        bands (column-bands edges (reduce max 0.0 (map :x1 words)))
+        result (->> rows
+                    (sort-by (comp :top first))
+                    (mapv (fn [row] (mapv #(text-cell row %) bands))))]
+    {:page-number (or (:page opts) (:page-number (first words)) 1)
+     :strategy :text
+     :bbox (words-bbox words)
+     :rows (filterv #(>= (count (remove (comp str/blank? :text) %)) min-words-horizontal)
+                    result)
+     :debug {:rows (count rows) :columns (count bands)}}))
+
 (defn extract-table
   "Extract a single table as `{:page-number :strategy :bbox :rows :cells :debug}`.
    `:rows` is a vector of rows, each a vector of `{:text :bbox}` cells. Options:
-   `:page`, `:strategy` (`:lines`, default), `:snap-tolerance` (default 3.0)."
+   `:page`, `:strategy` (`:lines` default, or `:text`), `:snap-tolerance`
+   (`:lines`, default 3.0), and for `:text`: `:text-x-tolerance`,
+   `:text-y-tolerance`, `:min-words-vertical` (3), `:min-words-horizontal` (1).
+
+   The `:text` strategy is heuristic and intended for digitally generated PDFs."
   ([doc] (extract-table doc {}))
   ([doc {:keys [strategy snap-tolerance]
          :or {strategy :lines snap-tolerance default-tolerance}
          :as opts}]
    (case strategy
      :lines (lines-table doc opts snap-tolerance)
+     :text (text-table doc opts)
      (throw (ex-info (str "Unknown table strategy: " strategy)
                      {:pdfplumber/error :unknown-strategy :strategy strategy})))))
 

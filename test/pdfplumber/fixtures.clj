@@ -88,6 +88,26 @@
             (.endText cs)))))
     (->bytes doc)))
 
+(defn text-table-pdf
+  "Single US-Letter page with a 2-column, 3-row table aligned by text position
+   only (no ruling lines): left column at x=80, right at x=308; rows at
+   y=700/670/640. Returns byte[]."
+  ^bytes []
+  (with-open [doc (PDDocument.)]
+    (let [page (PDPage. PDRectangle/LETTER)]
+      (.addPage doc page)
+      (with-open [cs (PDPageContentStream. doc page)]
+        (let [font (helvetica)]
+          (doseq [[s x y] [["Date" 80 700] ["Amount" 308 700]
+                           ["2026-01-01" 80 670] ["$10.00" 308 670]
+                           ["2026-02-01" 80 640] ["$20.00" 308 640]]]
+            (.beginText cs)
+            (.setFont cs font (float 10))
+            (.newLineAtOffset cs (float x) (float y))
+            (.showText cs ^String s)
+            (.endText cs)))))
+    (->bytes doc)))
+
 (defn pdf-with-metadata
   "Single-page PDF with the given document information set. `info` keys:
    :title :author :subject :keywords :creator. Returns byte[]."
