@@ -21,4 +21,9 @@ All notable changes to this project are documented here. The format follows
   returning `:rows`/`:cells`/`:debug`.
 - `pdfplumber.geometry`: bbox helpers and PDFBox↔top-left coordinate conversion.
 
+### Fixed
+- Word splitting now breaks on whitespace characters in addition to wide gaps,
+  so words separated by a narrow space are no longer merged. Validated against
+  the Python pdfplumber corpus (text-similarity and word-count median 1.0).
+
 [Unreleased]: https://github.com/jsavyasachi/pdfplumber-clj/commits/main

@@ -85,16 +85,22 @@
    :page-number (:page-number (first cs))})
 
 (defn- line-words
-  "Split one line's chars (sorted left-to-right) into words on gaps > `x-tol`."
+  "Split a line's chars (sorted left-to-right, whitespace retained) into words.
+   A whitespace char or a gap wider than `x-tol` starts a new word."
   [line x-tol]
-  (->> (sort-by :x0 line)
-       (reduce (fn [acc c]
-                 (let [w (peek acc)]
-                   (if (and w (<= (- (double (:x0 c)) (double (:x1 (peek w)))) x-tol))
-                     (conj (pop acc) (conj w c))
-                     (conj acc [c]))))
-               [])
-       (mapv merge-word)))
+  (loop [cs (sort-by :x0 line), cur [], words []]
+    (if-let [c (first cs)]
+      (cond
+        (whitespace? (:text c))
+        (recur (rest cs) [] (cond-> words (seq cur) (conj cur)))
+
+        (and (seq cur)
+             (> (- (double (:x0 c)) (double (:x1 (peek cur)))) x-tol))
+        (recur (rest cs) [c] (conj words cur))
+
+        :else
+        (recur (rest cs) (conj cur c) words))
+      (mapv merge-word (cond-> words (seq cur) (conj cur))))))
 
 (defn words
   "Vector of word maps `{:text :x0 :top :x1 :bottom :page-number}`, reading order.
@@ -104,9 +110,8 @@
   ([doc {:keys [x-tolerance y-tolerance] :or {x-tolerance default-tolerance
                                               y-tolerance default-tolerance}
          :as opts}]
-   (let [cs (remove (comp whitespace? :text) (chars doc opts))]
-     (into [] (mapcat #(line-words % x-tolerance))
-           (cluster-lines cs y-tolerance)))))
+   (into [] (mapcat #(line-words % x-tolerance))
+         (cluster-lines (chars doc opts) y-tolerance))))
 
 (defn text
   "Reconstructed text: words joined by spaces within a line, lines by newlines.
@@ -115,10 +120,9 @@
   ([doc {:keys [x-tolerance y-tolerance] :or {x-tolerance default-tolerance
                                               y-tolerance default-tolerance}
          :as opts}]
-   (let [cs (remove (comp whitespace? :text) (chars doc opts))]
-     (->> (cluster-lines cs y-tolerance)
-          (map (fn [line]
-                 (->> (line-words line x-tolerance)
-                      (map :text)
-                      (str/join " "))))
-          (str/join "\n")))))
+   (->> (cluster-lines (chars doc opts) y-tolerance)
+        (map (fn [line]
+               (->> (line-words line x-tolerance)
+                    (map :text)
+                    (str/join " "))))
+        (str/join "\n"))))
