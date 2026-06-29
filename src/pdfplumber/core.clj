@@ -3,7 +3,8 @@
    geometric objects, and tables as plain Clojure data."
   (:refer-clojure :exclude [chars])
   (:require [pdfplumber.document :as document]
-            [pdfplumber.text :as text])
+            [pdfplumber.text :as text]
+            [pdfplumber.objects :as objects])
   (:import [org.apache.pdfbox.pdmodel PDDocument]))
 
 (set! *warn-on-reflection* true)
@@ -43,6 +44,12 @@
   "Reconstructed text string. See `pdfplumber.text/text`."
   ([doc] (text/text doc))
   ([doc opts] (text/text doc opts)))
+
+(defn objects
+  "Vector of geometric object maps (lines, rects, curves). See
+   `pdfplumber.objects/objects`."
+  ([doc] (objects/objects doc))
+  ([doc opts] (objects/objects doc opts)))
 
 (defmacro with-pdf
   "Open `source`, bind the document handle to `binding`, evaluate `body`, and

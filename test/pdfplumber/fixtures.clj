@@ -49,6 +49,21 @@
           (.endText cs))))
     (->bytes doc)))
 
+(defn ruled-pdf
+  "Single US-Letter page with a horizontal rule (y=700, x 72..540), a vertical
+   rule (x=72, y 500..700), and a stroked rectangle (x=100 y=400 w=200 h=100),
+   all in PDFBox bottom-left points. Returns byte[]."
+  ^bytes []
+  (with-open [doc (PDDocument.)]
+    (let [page (PDPage. PDRectangle/LETTER)]
+      (.addPage doc page)
+      (with-open [cs (PDPageContentStream. doc page)]
+        (.setLineWidth cs (float 1.0))
+        (.moveTo cs (float 72) (float 700)) (.lineTo cs (float 540) (float 700)) (.stroke cs)
+        (.moveTo cs (float 72) (float 500)) (.lineTo cs (float 72) (float 700)) (.stroke cs)
+        (.addRect cs (float 100) (float 400) (float 200) (float 100)) (.stroke cs)))
+    (->bytes doc)))
+
 (defn pdf-with-metadata
   "Single-page PDF with the given document information set. `info` keys:
    :title :author :subject :keywords :creator. Returns byte[]."
