@@ -5,7 +5,7 @@
 
  :aliases
  {:test
-  {:extra-paths ["test" "dev"]
+  {:extra-paths ["test" "dev" "test/resources"]
    :extra-deps {lambdaisland/kaocha {:mvn/version "1.91.1392"}
                 org.slf4j/slf4j-nop {:mvn/version "2.0.16"}}
    :main-opts ["-m" "kaocha.runner"]}

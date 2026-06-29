@@ -1,0 +1,5 @@
+;; Golden extraction for (fixtures/simple-text-pdf) — "Hello PDF" at (72, 700),
+;; Helvetica 12pt, US-Letter. Generated with PDFBox 3.0.7. Coordinates are
+;; compared with a small numeric tolerance (see golden_test.clj).
+[{:text "Hello" :x0 72.0 :top 85.06 :x1 99.34 :bottom 92.0 :page-number 1}
+ {:text "PDF" :x0 102.67 :top 85.06 :x1 126.67 :bottom 92.0 :page-number 1}]
