@@ -1,0 +1,5 @@
+{:cljdoc.doc/tree
+ [["Readme" {:file "README.md"}]
+  ["Getting Started" {:file "doc/getting-started.md"}]
+  ["Extracting Tables" {:file "doc/extracting-tables.md"}]
+  ["Text, Words & Objects" {:file "doc/text-words-objects.md"}]]}
