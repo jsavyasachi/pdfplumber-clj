@@ -16,7 +16,7 @@ built on [Apache PDFBox](https://pdfbox.apache.org).
 
 ## Status
 
-Early release (`0.1.1`). The extraction API (text, words, chars, objects,
+Early release (`0.1.2`). The extraction API (text, words, chars, objects,
 tables, crop) is in place and validated against the Python pdfplumber corpus;
 it may still evolve before `1.0`.
 
@@ -25,13 +25,13 @@ it may still evolve before `1.0`.
 deps.edn
 
 ```clojure
-net.clojars.savya/pdfplumber-clj {:mvn/version "0.1.1"}
+net.clojars.savya/pdfplumber-clj {:mvn/version "0.1.2"}
 ```
 
 Leiningen
 
 ```clojure
-[net.clojars.savya/pdfplumber-clj "0.1.1"]
+[net.clojars.savya/pdfplumber-clj "0.1.2"]
 ```
 
 Requires JDK 17+.
