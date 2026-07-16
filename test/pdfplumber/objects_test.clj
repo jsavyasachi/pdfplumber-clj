@@ -49,3 +49,38 @@
       (let [near-top (pdf/objects d {:bbox [0 80 612 100]})]
         (is (pos? (count near-top)))
         (is (every? #(<= (:top %) 100) near-top))))))
+
+(deftest image-extraction
+  (pdf/with-pdf [d (fix/image-pdf)]
+    (let [images (pdf/images d)
+          image (first images)]
+      (testing "drawn image geometry and metadata"
+        (is (= 1 (count images)))
+        (is (= :image (:type image)))
+        (is (= :image (:object-type image)))
+        (is (= 2 (:width image)))
+        (is (= 3 (:height image)))
+        (is (= "DeviceRGB" (:colorspace image)))
+        (is (= 8 (:bits image)))
+        (is (true? (:srgb? image)))
+        (is (false? (:mask? image)))
+        (is (false? (:smask? image)))
+        (is (every? #(contains? image %)
+                    [:x0 :top :x1 :bottom :colorspace :bits
+                     :srgb? :mask? :smask? :page-number]))
+        (is (approx= 100 (:x0 image)))
+        (is (approx= 140 (:x1 image)))
+        (is (approx= 162 (:top image)))
+        (is (approx= 192 (:bottom image)))
+        (is (not (contains? image :bytes))))
+      (testing "images are part of the general object stream"
+        (is (= [image] (pdf/objects d {:types #{:image}}))))
+      (testing "decoded PNG bytes are opt-in"
+        (let [decoded (first (pdf/images d {:include-image-data? true}))]
+          (is (bytes? (:bytes decoded)))
+          (is (= [-119 80 78 71]
+                 (mapv int (take 4 (:bytes decoded))))))))))
+
+(deftest no-images
+  (pdf/with-pdf [d (fix/simple-text-pdf)]
+    (is (= [] (pdf/images d)))))

@@ -62,10 +62,16 @@
   ([source opts] (let [[doc o] (page/resolve-source source opts)] (text/text doc o))))
 
 (defn objects
-  "Vector of geometric object maps (lines, rects, curves). Accepts a document
+  "Vector of page object maps (lines, rects, curves, images). Accepts a document
    handle or a cropped page view. See `pdfplumber.objects/objects`."
   ([source] (objects source {}))
   ([source opts] (let [[doc o] (page/resolve-source source opts)] (objects/objects doc o))))
+
+(defn images
+  "Vector of drawn image objects. Accepts a document handle or a cropped page
+   view. See `pdfplumber.objects/images`."
+  ([source] (images source {}))
+  ([source opts] (let [[doc o] (page/resolve-source source opts)] (objects/images doc o))))
 
 (defn extract-table
   "Extract a single table. Accepts a document handle or a cropped page view. See

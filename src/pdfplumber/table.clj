@@ -1,73 +1,211 @@
 (ns pdfplumber.table
-  "Table extraction. The `:lines` strategy reconstructs a grid from ruling lines
-   (explicit line objects plus rectangle edges): near-collinear edges are snapped
-   together, grid intersections are found, and cells are the rectangles whose
-   four corners are all intersections. Words are assigned to cells by center."
+  "Table detection and extraction from ruling lines, text alignments, or
+   caller-supplied explicit lines. Public coordinates use
+   `[x0 top x1 bottom]` in a top-left origin."
   (:require [clojure.string :as str]
             [pdfplumber.geometry :as g]
             [pdfplumber.objects :as objects]
-            [pdfplumber.text :as text]))
+            [pdfplumber.text :as text])
+  (:import [org.apache.pdfbox.pdmodel PDDocument]))
 
-(def ^:private default-tolerance 3.0)
+(def ^:private defaults
+  {:vertical-strategy :lines
+   :horizontal-strategy :lines
+   :snap-tolerance 3.0
+   :join-tolerance 3.0
+   :edge-min-length 3.0
+   :intersection-tolerance 3.0
+   :min-words-vertical 3
+   :min-words-horizontal 1
+   :text-x-tolerance 3.0
+   :text-y-tolerance 3.0})
 
-(defn- edges
-  "Split objects into horizontal edges `{:y :x0 :x1}` and vertical edges
-   `{:x :top :bottom}`, from line objects and rectangle sides."
-  [objs]
-  (let [lines (filter #(= :line (:type %)) objs)
-        rects (filter #(= :rect (:type %)) objs)]
-    {:h (concat
-         (for [l lines :when (= :horizontal (:orientation l))]
-           {:y (:top l) :x0 (:x0 l) :x1 (:x1 l)})
-         (mapcat (fn [r] [{:y (:top r) :x0 (:x0 r) :x1 (:x1 r)}
-                          {:y (:bottom r) :x0 (:x0 r) :x1 (:x1 r)}]) rects))
-     :v (concat
-         (for [l lines :when (= :vertical (:orientation l))]
-           {:x (:x0 l) :top (:top l) :bottom (:bottom l)})
-         (mapcat (fn [r] [{:x (:x0 r) :top (:top r) :bottom (:bottom r)}
-                          {:x (:x1 r) :top (:top r) :bottom (:bottom r)}]) rects))}))
+(def ^:private strategies #{:lines :lines-strict :text :explicit})
 
-(defn- snap-positions
-  "Sorted cluster centers of `vals`, merging values within `tol`."
-  [vals tol]
+(defn- clusters [vals tol]
   (->> (sort vals)
        (reduce (fn [acc v]
                  (if (and (seq acc) (<= (- v (peek (peek acc))) tol))
                    (conj (pop acc) (conj (peek acc) v))
                    (conj acc [v])))
-               [])
+               [])))
+
+(defn- snap-positions [vals tol]
+  (mapv #(/ (reduce + %) (count %)) (clusters vals tol)))
+
+(defn- snap-to [positions tol v]
+  (or (first (filter #(<= (Math/abs (- (double v) (double %))) tol) positions)) v))
+
+(defn- source-edges [objs strict?]
+  (let [lines (filter #(= :line (:type %)) objs)
+        rects (if strict? [] (filter #(= :rect (:type %)) objs))]
+    {:h (concat
+         (for [line lines :when (= :horizontal (:orientation line))]
+           {:y (:top line) :x0 (:x0 line) :x1 (:x1 line)})
+         (mapcat (fn [rect]
+                   [{:y (:top rect) :x0 (:x0 rect) :x1 (:x1 rect)}
+                    {:y (:bottom rect) :x0 (:x0 rect) :x1 (:x1 rect)}])
+                 rects))
+     :v (concat
+         (for [line lines :when (= :vertical (:orientation line))]
+           {:x (:x0 line) :top (:top line) :bottom (:bottom line)})
+         (mapcat (fn [rect]
+                   [{:x (:x0 rect) :top (:top rect) :bottom (:bottom rect)}
+                    {:x (:x1 rect) :top (:top rect) :bottom (:bottom rect)}])
+                 rects))}))
+
+(defn- text-rows [words tol]
+  (->> (sort-by :top words)
+       (reduce (fn [rows word]
+                 (let [row (peek rows)
+                       row-top (some-> row first :top)]
+                   (if (and row-top
+                            (<= (Math/abs (- (double (:top word))
+                                             (double row-top))) tol))
+                     (conj (pop rows) (conj row word))
+                     (conj rows [word]))))
+               [])))
+
+(defn- words-bbox [words]
+  (when (seq words)
+    [(reduce min (map :x0 words)) (reduce min (map :top words))
+     (reduce max (map :x1 words)) (reduce max (map :bottom words))]))
+
+(defn- supported-positions [vals tol minimum]
+  (->> (clusters vals tol)
+       (filter #(>= (count %) minimum))
        (mapv #(/ (reduce + %) (count %)))))
 
-(defn- snap-to [canonicals tol v]
-  (or (first (filter #(<= (Math/abs (- (double v) (double %))) tol) canonicals)) v))
+(defn- text-vertical-edges [words {:keys [text-x-tolerance min-words-vertical]}]
+  (when-let [[_ top right bottom] (words-bbox words)]
+    (let [lefts (supported-positions (map :x0 words) text-x-tolerance
+                                     min-words-vertical)
+          positions (vec (distinct (sort (conj lefts right))))]
+      (for [x positions] {:x x :top top :bottom bottom}))))
 
-(defn- build-grid [{:keys [h v]} tol]
-  (let [ys (snap-positions (map :y h) tol)
-        xs (snap-positions (map :x v) tol)]
-    {:xs xs
-     :ys ys
-     :h (map #(assoc % :y (snap-to ys tol (:y %))) h)
-     :v (map #(assoc % :x (snap-to xs tol (:x %))) v)}))
+(defn- text-horizontal-edges [words {:keys [text-y-tolerance min-words-horizontal]}]
+  (when-let [[left _ right _] (words-bbox words)]
+    (let [rows (filter #(>= (count %) min-words-horizontal)
+                       (text-rows words text-y-tolerance))
+          positions (cond-> (mapv #(reduce min (map :top %)) rows)
+                      (seq rows) (conj (reduce max (map :bottom (last rows)))))]
+      (for [y (distinct (sort positions))] {:y y :x0 left :x1 right}))))
 
-(defn- intersection?
-  "True when a vertical and a horizontal edge both cross `(x, y)` within `tol`."
-  [{:keys [h v]} x y tol]
-  (and (some (fn [e] (and (<= (Math/abs (- (double (:x e)) x)) tol)
-                          (<= (- (:top e) tol) y (+ (:bottom e) tol)))) v)
-       (some (fn [e] (and (<= (Math/abs (- (double (:y e)) y)) tol)
-                          (<= (- (:x0 e) tol) x (+ (:x1 e) tol)))) h)))
+(defn- page-bbox [^PDDocument doc opts]
+  (or (:bbox opts)
+      (let [page (.getPage doc (dec (int (or (:page opts) 1))))
+            box (.getMediaBox page)]
+        [0.0 0.0 (double (.getWidth box)) (double (.getHeight box))])))
 
-(defn- grid-cells
-  "Cell bboxes `[x0 top x1 bottom]` for every adjacent x/y pair whose four
-   corners are all grid intersections."
-  [{:keys [xs ys] :as grid} tol]
-  (for [[y0 y1] (partition 2 1 ys)
-        [x0 x1] (partition 2 1 xs)
-        :when (and (intersection? grid x0 y0 tol)
-                   (intersection? grid x1 y0 tol)
-                   (intersection? grid x0 y1 tol)
-                   (intersection? grid x1 y1 tol))]
-    [x0 y0 x1 y1]))
+(defn- explicit-v-edge [entry [x0 top x1 bottom]]
+  (if (number? entry)
+    {:x (double entry) :top top :bottom bottom}
+    {:x (double (or (:x entry) (:x0 entry)))
+     :top (double (or (:top entry) top))
+     :bottom (double (or (:bottom entry) bottom))}))
+
+(defn- explicit-h-edge [entry [x0 top x1 bottom]]
+  (if (number? entry)
+    {:y (double entry) :x0 x0 :x1 x1}
+    {:y (double (or (:y entry) (:top entry)))
+     :x0 (double (or (:x0 entry) x0))
+     :x1 (double (or (:x1 entry) x1))}))
+
+(defn- join-runs [edges coord start end tolerance]
+  (mapcat
+   (fn [[position same-position]]
+     (let [runs (reduce (fn [runs edge]
+                          (let [run (peek runs)]
+                            (if (and run (<= (- (double (start edge))
+                                                (double (end run))) tolerance))
+                              (conj (pop runs) (assoc run end (max (end run) (end edge))))
+                              (conj runs edge))))
+                        []
+                        (sort-by start same-position))]
+       (map #(assoc % coord position) runs)))
+   (group-by coord edges)))
+
+(defn- normalize-edges [{:keys [h v]} {:keys [snap-tolerance join-tolerance
+                                               edge-min-length]}]
+  (let [ys (snap-positions (map :y h) snap-tolerance)
+        xs (snap-positions (map :x v) snap-tolerance)
+        h (map #(assoc % :y (snap-to ys snap-tolerance (:y %))) h)
+        v (map #(assoc % :x (snap-to xs snap-tolerance (:x %))) v)
+        h (join-runs h :y :x0 :x1 join-tolerance)
+        v (join-runs v :x :top :bottom join-tolerance)]
+    {:h (filterv #(>= (- (double (:x1 %)) (:x0 %)) edge-min-length) h)
+     :v (filterv #(>= (- (double (:bottom %)) (:top %)) edge-min-length) v)}))
+
+(defn- strategy-edges [doc words objs opts]
+  (let [bbox (page-bbox doc opts)
+        line-edges (source-edges objs false)
+        strict-edges (source-edges objs true)
+        vertical (case (:vertical-strategy opts)
+                   :lines (:v line-edges)
+                   :lines-strict (:v strict-edges)
+                   :text (text-vertical-edges words opts)
+                   :explicit (map #(explicit-v-edge % bbox)
+                                  (:explicit-vertical-lines opts)))
+        horizontal (case (:horizontal-strategy opts)
+                     :lines (:h line-edges)
+                     :lines-strict (:h strict-edges)
+                     :text (text-horizontal-edges words opts)
+                     :explicit (map #(explicit-h-edge % bbox)
+                                    (:explicit-horizontal-lines opts)))
+        vertical (if (and (= :text (:vertical-strategy opts)) (seq horizontal))
+                   (let [top (reduce min (map :y horizontal))
+                         bottom (reduce max (map :y horizontal))]
+                     (map #(assoc % :top top :bottom bottom) vertical))
+                   vertical)
+        horizontal (if (and (= :text (:horizontal-strategy opts)) (seq vertical))
+                     (let [x0 (reduce min (map :x vertical))
+                           x1 (reduce max (map :x vertical))]
+                       (map #(assoc % :x0 x0 :x1 x1) horizontal))
+                     horizontal)]
+    (normalize-edges {:h horizontal :v vertical} opts)))
+
+(defn- intersection? [{:keys [h v]} x y tol]
+  (and (some #(and (<= (Math/abs (- (double (:x %)) x)) tol)
+                    (<= (- (:top %) tol) y (+ (:bottom %) tol))) v)
+       (some #(and (<= (Math/abs (- (double (:y %)) y)) tol)
+                    (<= (- (:x0 %) tol) x (+ (:x1 %) tol))) h)))
+
+(defn- grid-cells [edges tolerance]
+  (let [xs (sort (distinct (map :x (:v edges))))
+        ys (sort (distinct (map :y (:h edges))))]
+    (vec
+     (for [[top bottom] (partition 2 1 ys)
+           [x0 x1] (partition 2 1 xs)
+           :when (and (intersection? edges x0 top tolerance)
+                      (intersection? edges x1 top tolerance)
+                      (intersection? edges x0 bottom tolerance)
+                      (intersection? edges x1 bottom tolerance))]
+       [x0 top x1 bottom]))))
+
+(defn- adjacent-cells? [[ax0 at ax1 ab] [bx0 bt bx1 bb] tol]
+  (or (and (<= (Math/abs (- (double at) bt)) tol)
+           (<= (Math/abs (- (double ab) bb)) tol)
+           (or (<= (Math/abs (- (double ax1) bx0)) tol)
+               (<= (Math/abs (- (double bx1) ax0)) tol)))
+      (and (<= (Math/abs (- (double ax0) bx0)) tol)
+           (<= (Math/abs (- (double ax1) bx1)) tol)
+           (or (<= (Math/abs (- (double ab) bt)) tol)
+               (<= (Math/abs (- (double bb) at)) tol)))))
+
+(defn- cell-components [cells tolerance]
+  (loop [remaining (set cells) components []]
+    (if-let [seed (first remaining)]
+      (let [component
+            (loop [found #{seed} frontier [seed]]
+              (if-let [cell (peek frontier)]
+                (let [neighbors (filter #(and (not (contains? found %))
+                                              (adjacent-cells? cell % tolerance))
+                                        remaining)]
+                  (recur (into found neighbors)
+                         (into (pop frontier) neighbors)))
+                found))]
+        (recur (reduce disj remaining component) (conj components component)))
+      components)))
 
 (defn- cell-text [words bbox]
   (->> words
@@ -76,121 +214,91 @@
        (map :text)
        (str/join " ")))
 
-(defn- assemble-rows [cell-bboxes words tol]
-  (->> cell-bboxes
-       (group-by (fn [[_ top]] (Math/round (/ (double top) tol))))
+(defn- assemble-rows [cells words tolerance]
+  (->> cells
+       (group-by (fn [[_ top]] (Math/round (/ (double top) tolerance))))
        (sort-by key)
        (mapv (fn [[_ row]]
-               (->> (sort-by first row)
-                    (mapv (fn [bbox] {:text (cell-text words bbox) :bbox bbox})))))))
+               (mapv (fn [bbox] {:text (cell-text words bbox) :bbox bbox})
+                     (sort-by first row))))))
 
-(defn- lines-table [doc opts tol]
-  (let [objs (objects/objects doc opts)
+(defn- component-bbox [cells]
+  [(reduce min (map first cells))
+   (reduce min (map second cells))
+   (reduce max (map #(nth % 2) cells))
+   (reduce max (map #(nth % 3) cells))])
+
+(defn- table-strategy [{:keys [vertical-strategy horizontal-strategy]}]
+  (if (= vertical-strategy horizontal-strategy)
+    vertical-strategy
+    {:vertical vertical-strategy :horizontal horizontal-strategy}))
+
+(defn- detected-tables [doc opts]
+  (let [opts (merge defaults opts)
         words (text/words doc opts)
-        e (edges objs)
-        grid (build-grid e tol)
-        cells (grid-cells grid tol)
-        bbox (when (and (seq (:xs grid)) (seq (:ys grid)))
-               [(first (:xs grid)) (first (:ys grid))
-                (last (:xs grid)) (last (:ys grid))])]
-    {:page-number (or (:page opts) (:page-number (first words)) 1)
-     :strategy :lines
-     :bbox bbox
-     :rows (assemble-rows cells words tol)
-     :cells (vec cells)
-     :debug {:horizontal-lines (count (:h e))
-             :vertical-lines (count (:v e))
-             :cells (count cells)}}))
+        objs (objects/objects doc opts)
+        edges (strategy-edges doc words objs opts)
+        tolerance (:intersection-tolerance opts)
+        cells (grid-cells edges tolerance)]
+    (->> (cell-components cells tolerance)
+         (map (fn [component]
+                (let [cells (vec (sort-by (juxt second first) component))
+                      bbox (component-bbox cells)
+                      region-h (filter #(and (<= (:x0 %) (nth bbox 2))
+                                             (>= (:x1 %) (first bbox))) (:h edges))
+                      region-v (filter #(and (<= (:top %) (nth bbox 3))
+                                             (>= (:bottom %) (second bbox))) (:v edges))]
+                  {:page-number (or (:page opts) (:page-number (first words)) 1)
+                   :strategy (table-strategy opts)
+                   :bbox bbox
+                   :rows (assemble-rows cells words (max 0.001 (:snap-tolerance opts)))
+                   :cells cells
+                   :debug (cond-> {:horizontal-lines (count region-h)
+                                   :vertical-lines (count region-v)
+                                   :cells (count cells)}
+                            (= :text (:vertical-strategy opts))
+                            (assoc :columns (dec (count (distinct (map :x region-v)))))
+                            (= :text (:horizontal-strategy opts))
+                            (assoc :rows (dec (count (distinct (map :y region-h))))))})))
+         (sort-by (juxt #(second (:bbox %)) #(first (:bbox %))))
+         vec)))
 
-;; --- :text strategy -------------------------------------------------------
-
-(defn- clusters
-  "Group sorted `vals` into runs where neighbours are within `tol`."
-  [vals tol]
-  (->> (sort vals)
-       (reduce (fn [acc v]
-                 (if (and (seq acc) (<= (- v (peek (peek acc))) tol))
-                   (conj (pop acc) (conj (peek acc) v))
-                   (conj acc [v])))
-               [])))
-
-(defn- text-rows [words y-tol]
-  (->> (sort-by :top words)
-       (reduce (fn [acc w]
-                 (let [row (peek acc)
-                       rtop (some-> row first :top)]
-                   (if (and rtop (<= (Math/abs (- (double (:top w)) (double rtop))) y-tol))
-                     (conj (pop acc) (conj row w))
-                     (conj acc [w]))))
-               [])))
-
-(defn- column-edges
-  "Left edges of columns: clusters of word `:x0` supported by at least
-   `min-vertical` words."
-  [words x-tol min-vertical]
-  (->> (clusters (map :x0 words) x-tol)
-       (filter #(>= (count %) min-vertical))
-       (mapv #(/ (reduce + %) (count %)))
-       sort
-       vec))
-
-(defn- column-bands [edges max-x]
-  (mapv vec (partition 2 1 (conj edges (inc (double max-x))))))
-
-(defn- center-x [w] (/ (+ (double (:x0 w)) (:x1 w)) 2))
-
-(defn- text-cell [row [left right]]
-  (let [ws (filter #(let [cx (center-x %)] (and (<= left cx) (< cx right))) row)]
-    {:text (->> ws (sort-by :x0) (map :text) (str/join " "))
-     :bbox (when (seq ws)
-             [(reduce min (map :x0 ws)) (reduce min (map :top ws))
-              (reduce max (map :x1 ws)) (reduce max (map :bottom ws))])}))
-
-(defn- words-bbox [words]
-  (when (seq words)
-    [(reduce min (map :x0 words)) (reduce min (map :top words))
-     (reduce max (map :x1 words)) (reduce max (map :bottom words))]))
-
-(defn- text-table [doc opts]
-  (let [{:keys [text-x-tolerance text-y-tolerance min-words-vertical min-words-horizontal]
-         :or {text-x-tolerance default-tolerance text-y-tolerance default-tolerance
-              min-words-vertical 3 min-words-horizontal 1}} opts
-        words (text/words doc opts)
-        rows (text-rows words text-y-tolerance)
-        edges (column-edges words text-x-tolerance min-words-vertical)
-        bands (column-bands edges (reduce max 0.0 (map :x1 words)))
-        result (->> rows
-                    (sort-by (comp :top first))
-                    (mapv (fn [row] (mapv #(text-cell row %) bands))))]
-    {:page-number (or (:page opts) (:page-number (first words)) 1)
-     :strategy :text
-     :bbox (words-bbox words)
-     :rows (filterv #(>= (count (remove (comp str/blank? :text) %)) min-words-horizontal)
-                    result)
-     :debug {:rows (count rows) :columns (count bands)}}))
-
-(defn extract-table
-  "Extract a single table as `{:page-number :strategy :bbox :rows :cells :debug}`.
-   `:rows` is a vector of rows, each a vector of `{:text :bbox}` cells. Options:
-   `:page`, `:strategy` (`:lines` default, or `:text`), `:snap-tolerance`
-   (`:lines`, default 3.0), and for `:text`: `:text-x-tolerance`,
-   `:text-y-tolerance`, `:min-words-vertical` (3), `:min-words-horizontal` (1).
-
-   The `:text` strategy is heuristic and intended for digitally generated PDFs."
-  ([doc] (extract-table doc {}))
-  ([doc {:keys [strategy snap-tolerance]
-         :or {strategy :lines snap-tolerance default-tolerance}
-         :as opts}]
-   (case strategy
-     :lines (lines-table doc opts snap-tolerance)
-     :text (text-table doc opts)
-     (throw (ex-info (str "Unknown table strategy: " strategy)
-                     {:pdfplumber/error :unknown-strategy :strategy strategy})))))
+(defn- normalize-options [opts]
+  (let [legacy (:strategy opts)
+        opts (cond-> opts
+               (and legacy (not (contains? opts :vertical-strategy)))
+               (assoc :vertical-strategy legacy)
+               (and legacy (not (contains? opts :horizontal-strategy)))
+               (assoc :horizontal-strategy legacy))
+        opts (merge defaults opts)]
+    (doseq [[axis strategy] [[:vertical (:vertical-strategy opts)]
+                             [:horizontal (:horizontal-strategy opts)]]]
+      (when-not (contains? strategies strategy)
+        (throw (ex-info (str "Unknown " (name axis) " table strategy: " strategy)
+                        {:pdfplumber/error :unknown-strategy
+                         :axis axis :strategy strategy}))))
+    opts))
 
 (defn extract-tables
-  "Extract tables on the page as a vector. v1 returns at most one table (the
-   bounding grid). Same options as `extract-table`."
+  "Detect and extract every independent table on a page, ordered top-to-bottom
+   then left-to-right. Unlike versions through 0.1.2, this returns one table per
+   connected cell region instead of at most one page-wide bounding grid.
+
+   Options include `:vertical-strategy` and `:horizontal-strategy`, each one of
+   `:lines`, `:lines-strict`, `:text`, or `:explicit`; corresponding
+   `:explicit-vertical-lines` / `:explicit-horizontal-lines`; and
+   `:snap-tolerance`, `:join-tolerance`, `:edge-min-length`,
+   `:intersection-tolerance`, `:min-words-vertical`, and
+   `:min-words-horizontal`. The legacy `:strategy` option sets both axes."
   ([doc] (extract-tables doc {}))
   ([doc opts]
-   (let [t (extract-table doc opts)]
-     (if (seq (:rows t)) [t] []))))
+   (detected-tables doc (normalize-options opts))))
+
+(defn extract-table
+  "Extract the first detected table, ordered top-to-bottom then left-to-right,
+   or nil when no table is found. This preserves the singular API while
+   `extract-tables` returns all independent table regions. Options are the same
+   as `extract-tables`."
+  ([doc] (extract-table doc {}))
+  ([doc opts]
+   (first (extract-tables doc opts))))
