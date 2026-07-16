@@ -108,6 +108,74 @@
             (.endText cs)))))
     (->bytes doc)))
 
+(defn two-tables-pdf
+  "Single page with two spatially separate ruled 2x2 tables. Returns byte[]."
+  ^bytes []
+  (with-open [doc (PDDocument.)]
+    (let [page (PDPage. PDRectangle/LETTER)]
+      (.addPage doc page)
+      (with-open [cs (PDPageContentStream. doc page)]
+        (.setLineWidth cs (float 1.0))
+        (doseq [{:keys [xs ys labels]}
+                [{:xs [60 150 240] :ys [720 690 660]
+                  :labels [["A" 68 698] ["B" 158 698]
+                           ["1" 68 668] ["2" 158 668]]}
+                 {:xs [330 420 510] :ys [520 490 460]
+                  :labels [["C" 338 498] ["D" 428 498]
+                           ["3" 338 468] ["4" 428 468]]}]]
+          (doseq [y ys]
+            (.moveTo cs (float (first xs)) (float y))
+            (.lineTo cs (float (last xs)) (float y))
+            (.stroke cs))
+          (doseq [x xs]
+            (.moveTo cs (float x) (float (last ys)))
+            (.lineTo cs (float x) (float (first ys)))
+            (.stroke cs))
+          (doseq [[s x y] labels]
+            (.beginText cs)
+            (.setFont cs (helvetica) (float 10))
+            (.newLineAtOffset cs (float x) (float y))
+            (.showText cs ^String s)
+            (.endText cs)))))
+    (->bytes doc)))
+
+(defn explicit-table-pdf
+  "Single page with table text but no ruling lines. Returns byte[]."
+  ^bytes []
+  (with-open [doc (PDDocument.)]
+    (let [page (PDPage. PDRectangle/LETTER)]
+      (.addPage doc page)
+      (with-open [cs (PDPageContentStream. doc page)]
+        (doseq [[s x y] [["Left" 80 700] ["Right" 180 700]
+                         ["x" 80 670] ["y" 180 670]]]
+          (.beginText cs)
+          (.setFont cs (helvetica) (float 10))
+          (.newLineAtOffset cs (float x) (float y))
+          (.showText cs ^String s)
+          (.endText cs)))
+      (->bytes doc))))
+
+(defn partially-ruled-table-pdf
+  "Three text-aligned rows with horizontal rules but no vertical rules."
+  ^bytes []
+  (with-open [doc (PDDocument.)]
+    (let [page (PDPage. PDRectangle/LETTER)]
+      (.addPage doc page)
+      (with-open [cs (PDPageContentStream. doc page)]
+        (doseq [y [710 680 650 620]]
+          (.moveTo cs (float 70) (float y))
+          (.lineTo cs (float 400) (float y))
+          (.stroke cs))
+        (doseq [[s x y] [["Date" 80 700] ["Amount" 308 700]
+                         ["2026-01-01" 80 670] ["$10.00" 308 670]
+                         ["2026-02-01" 80 640] ["$20.00" 308 640]]]
+          (.beginText cs)
+          (.setFont cs (helvetica) (float 10))
+          (.newLineAtOffset cs (float x) (float y))
+          (.showText cs ^String s)
+          (.endText cs)))
+      (->bytes doc))))
+
 (defn pdf-with-metadata
   "Single-page PDF with the given document information set. `info` keys:
    :title :author :subject :keywords :creator. Returns byte[]."
