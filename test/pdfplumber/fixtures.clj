@@ -5,7 +5,10 @@
   (:import [org.apache.pdfbox.pdmodel PDDocument PDDocumentInformation PDPage PDPageContentStream]
            [org.apache.pdfbox.pdmodel.common PDRectangle]
            [org.apache.pdfbox.pdmodel.font PDType1Font Standard14Fonts$FontName]
+           [org.apache.pdfbox.pdmodel.graphics.image LosslessFactory]
            [org.apache.pdfbox.pdmodel.encryption AccessPermission StandardProtectionPolicy]
+           [java.awt Color]
+           [java.awt.image BufferedImage]
            [java.io ByteArrayOutputStream]))
 
 (set! *warn-on-reflection* true)
@@ -174,6 +177,25 @@
           (.newLineAtOffset cs (float x) (float y))
           (.showText cs ^String s)
           (.endText cs)))
+      (->bytes doc))))
+
+(defn image-pdf
+  "Single page with a 2x3 RGB raster drawn at x=100, y=600, w=40, h=30."
+  ^bytes []
+  (with-open [doc (PDDocument.)]
+    (let [page (PDPage. PDRectangle/LETTER)
+          raster (BufferedImage. 2 3 BufferedImage/TYPE_INT_RGB)
+          graphics (.createGraphics raster)]
+      (try
+        (.setColor graphics Color/RED)
+        (.fillRect graphics 0 0 1 3)
+        (.setColor graphics Color/BLUE)
+        (.fillRect graphics 1 0 1 3)
+        (finally (.dispose graphics)))
+      (.addPage doc page)
+      (let [image (LosslessFactory/createFromImage doc raster)]
+        (with-open [cs (PDPageContentStream. doc page)]
+          (.drawImage cs image (float 100) (float 600) (float 40) (float 30))))
       (->bytes doc))))
 
 (defn pdf-with-metadata
