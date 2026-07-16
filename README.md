@@ -16,7 +16,7 @@ built on [Apache PDFBox](https://pdfbox.apache.org).
 
 ## Status
 
-Early release (`0.1.2`). The extraction API (text, words, chars, objects,
+Early release (`0.2.0`). The extraction API (text, words, chars, objects,
 tables, crop) is in place and validated against the Python pdfplumber corpus;
 it may still evolve before `1.0`.
 
@@ -25,13 +25,13 @@ it may still evolve before `1.0`.
 deps.edn
 
 ```clojure
-net.clojars.savya/pdfplumber-clj {:mvn/version "0.1.2"}
+net.clojars.savya/pdfplumber-clj {:mvn/version "0.2.0"}
 ```
 
 Leiningen
 
 ```clojure
-[net.clojars.savya/pdfplumber-clj "0.1.2"]
+[net.clojars.savya/pdfplumber-clj "0.2.0"]
 ```
 
 Requires JDK 17+.
@@ -51,6 +51,43 @@ Requires JDK 17+.
   (pdf/extract-table doc {:page 1 :strategy :lines}))
 ```
 
+## Tables
+
+`extract-tables` returns every independent table region on a page, ordered
+top-to-bottom then left-to-right. `extract-table` returns only the first region.
+Configure each axis independently with `:vertical-strategy` and
+`:horizontal-strategy`; each accepts `:lines`, `:lines-strict`, `:text`, or
+`:explicit`. The legacy `:strategy` option sets both axes.
+
+```clojure
+(pdf/extract-tables doc
+  {:page 1
+   :vertical-strategy :explicit
+   :horizontal-strategy :lines
+   :explicit-vertical-lines [70 170 260]
+   :snap-tolerance 3.0
+   :join-tolerance 3.0
+   :edge-min-length 3.0
+   :intersection-tolerance 3.0
+   :min-words-vertical 3
+   :min-words-horizontal 1})
+```
+
+Use `:explicit-horizontal-lines` with `:horizontal-strategy :explicit`.
+Explicit lines may be coordinates or maps with bounded line coordinates.
+
+## Images
+
+`images` returns drawn image objects. Images also appear as `:image` entries in
+`objects`. Each image includes its bbox, pixel `:width` and `:height`,
+`:colorspace`, `:bits`, `:mask?`, and `:smask?`. Decoded PNG bytes are omitted
+by default.
+
+```clojure
+(pdf/images doc {:page 1})
+(pdf/images doc {:page 1 :include-image-data? true}) ; adds :bytes
+```
+
 ## Coordinate system
 
 Public coordinates use a **top-left origin** (matching `pdfplumber`), with bounding
@@ -59,8 +96,9 @@ coordinates are converted internally.
 
 ## Scope
 
-In: text/word/char extraction, page geometry, crop/filter, ruling-line and
-text-aligned table extraction, deterministic plain-data output.
+In: text/word/char and image extraction, page geometry, crop/filter,
+multi-table extraction from ruling lines, text alignment, or explicit lines,
+and deterministic plain-data output.
 
 Out (v1): PDF generation, OCR, scanned/image PDFs, AcroForm extraction, layout ML.
 Table `:text` strategy is heuristic and intended for digitally generated PDFs.
