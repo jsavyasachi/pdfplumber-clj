@@ -100,3 +100,23 @@
           (is (= (:text tm) (apply str (map second (:tuples tm)))))
           (is (every? #(or (nil? (first %)) (map? (first %))) (:tuples tm)))
           (is (re-find #"alpha,beta\s{5,}right" laid-out)))))))
+
+(deftest text-lines-and-positional-search
+  (pdf/with-pdf [d (fix/advanced-text-pdf)]
+    (let [lines-var (ns-resolve 'pdfplumber.core 'extract-text-lines)
+          search-var (ns-resolve 'pdfplumber.core 'search)]
+      (is (every? some? [lines-var search-var]))
+      (when (and lines-var search-var)
+        (let [lines (lines-var d)]
+          (is (= ["alpha,beta right" "second line"] (mapv :text lines)))
+          (is (every? #(every? (partial contains? %) [:x0 :top :x1 :bottom :chars])
+                      lines))
+          (is (= "alpha,betaright" (str/replace (apply str (map :text (:chars (first lines)))) #"\s" ""))))
+        (let [match (first (search-var d #"alpha,(be)(ta)"))]
+          (is (= "alpha,beta" (:text match)))
+          (is (= ["be" "ta"] (:groups match)))
+          (is (= "alpha,beta" (apply str (map :text (:chars match)))))
+          (is (< (:x0 match) (:x1 match)))
+          (is (< (:top match) (:bottom match))))
+        (is (= ["second line"]
+               (mapv :text (search-var d "second line" {:regex false}))))))))

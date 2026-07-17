@@ -107,6 +107,18 @@
   ([source opts] (let [[doc o] (page/resolve-source source opts)]
                    (text/text-map doc o))))
 
+(defn extract-text-lines
+  "Positional text lines. See `pdfplumber.text/extract-text-lines`."
+  ([source] (extract-text-lines source {}))
+  ([source opts] (let [[doc o] (page/resolve-source source opts)]
+                   (text/extract-text-lines doc o))))
+
+(defn search
+  "Positional regex or literal search. See `pdfplumber.text/search`."
+  ([source pattern] (search source pattern {}))
+  ([source pattern opts] (let [[doc o] (page/resolve-source source opts)]
+                           (text/search doc pattern o))))
+
 (defn objects
   "Vector of page object maps (lines, rects, curves, images). Accepts a document
    handle or a cropped page view. See `pdfplumber.objects/objects`."

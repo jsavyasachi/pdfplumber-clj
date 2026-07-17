@@ -12,7 +12,8 @@
   (:import [org.apache.pdfbox.pdmodel PDDocument]
            [org.apache.pdfbox.text PDFTextStripper TextPosition]
            [org.apache.pdfbox.util Matrix]
-           [java.util List]))
+           [java.util List]
+           [java.util.regex Pattern Matcher]))
 
 (set! *warn-on-reflection* true)
 
@@ -269,6 +270,70 @@
                              (str out (apply str (repeat spaces " ")) (:text word))))
                     out))))
          (str/join "\n"))))
+
+(defn- chars-bounds [cs]
+  (when (seq cs)
+    {:x0 (reduce min (map :x0 cs))
+     :top (reduce min (map :top cs))
+     :x1 (reduce max (map :x1 cs))
+     :bottom (reduce max (map :bottom cs))
+     :y0 (reduce min (map :y0 cs))
+     :y1 (reduce max (map :y1 cs))
+     :doctop (reduce min (map :doctop cs))}))
+
+(defn extract-text-lines
+  "Extract positional line maps. Each includes text, bounds, page number, and
+   contributing chars unless `:return-chars false` is supplied."
+  ([doc] (extract-text-lines doc {}))
+  ([doc opts]
+   (let [{:keys [words groups]} (word-data doc opts)
+         return-chars (not= false (or (:return-chars opts) (:return_chars opts)))]
+     (mapv (fn [line-words line-groups]
+             (let [cs (vec (mapcat identity line-groups))]
+               (cond-> (merge {:text (str/join " " (map :text line-words))
+                               :object-type :text-line
+                               :page-number (:page-number (first cs))}
+                              (chars-bounds cs))
+                 return-chars (assoc :chars cs))))
+           words groups))))
+
+(defn- search-pattern [pattern regex? case-sensitive?]
+  (if (instance? Pattern pattern)
+    pattern
+    (Pattern/compile (if regex? (str pattern) (Pattern/quote (str pattern)))
+                     (if case-sensitive? 0 Pattern/CASE_INSENSITIVE))))
+
+(defn- distinct-chars [tuples]
+  (reduce (fn [out [c _]]
+            (if (or (nil? c) (= c (peek out))) out (conj out c)))
+          [] tuples))
+
+(defn search
+  "Search reconstructed text with a regex Pattern or string. Results include
+   match text, capture groups, bounds, and contributing chars. String patterns
+   are regexes by default; set `:regex false` for literal matching."
+  ([doc pattern] (search doc pattern {}))
+  ([doc pattern opts]
+   (let [{:keys [text tuples]} (text-map doc opts)
+         regex? (not= false (:regex opts))
+         case-sensitive? (not= false (or (:case-sensitive opts) (:case opts)))
+         ^Matcher matcher (.matcher ^Pattern (search-pattern pattern regex?
+                                                              case-sensitive?)
+                                   ^CharSequence text)]
+     (loop [matches []]
+       (if (.find matcher)
+         (let [matched (.group matcher)
+               contributing (distinct-chars (subvec tuples (.start matcher) (.end matcher)))
+               groups (mapv #(.group matcher (int %))
+                            (range 1 (inc (.groupCount matcher))))]
+           (recur (cond-> matches
+                    (and (seq matched) (not (str/blank? matched)) (seq contributing))
+                    (conj (merge {:text matched
+                                  :groups groups
+                                  :chars contributing
+                                  :page-number (:page-number (first contributing))}
+                                 (chars-bounds contributing))))))
+         matches)))))
 
 (defn text
   "Reconstructed text: words joined by spaces within a line, lines by newlines.
