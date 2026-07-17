@@ -6,6 +6,8 @@
             [pdfplumber.text :as text]
             [pdfplumber.objects :as objects]
             [pdfplumber.table :as table]
+            [pdfplumber.image :as image]
+            [pdfplumber.structure :as structure]
             [pdfplumber.page :as page])
   (:import [org.apache.pdfbox.pdmodel PDDocument]))
 
@@ -217,6 +219,32 @@
   ([source] (find-table source {}))
   ([source opts] (let [[doc o] (page/resolve-source source opts)]
                    (table/find-table doc o))))
+
+(defn to-image
+  "Render a page or cropped page view as a PageImage for visual debugging.
+   Accepts a document handle or a cropped page view. Thread the result through
+   the overlay/save verbs in `pdfplumber.image` (`draw-rect`, `draw-line`,
+   `outline-words`, `debug-tablefinder`, `save`, ...). See
+   `pdfplumber.image/to-image`."
+  ([source] (image/to-image source {}))
+  ([source opts] (image/to-image source opts)))
+
+(defn page-image?
+  "True when `x` is a PageImage. See `pdfplumber.image/page-image?`."
+  [x]
+  (image/page-image? x))
+
+(defn structure-tree
+  "Tagged-PDF logical structure as nested element maps, or `[]` when the PDF is
+   untagged. See `pdfplumber.structure/structure-tree`."
+  [doc]
+  (structure/structure-tree doc))
+
+(defn page-structure-tree
+  "Logical structure associated with 1-based page `n`. See
+   `pdfplumber.structure/page-structure-tree`."
+  [doc n]
+  (structure/page-structure-tree doc n))
 
 (defmacro with-pdf
   "Open `source`, bind the document handle to `binding`, evaluate `body`, and
