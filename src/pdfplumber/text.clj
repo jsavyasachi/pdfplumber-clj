@@ -7,7 +7,8 @@
    `:y-tolerance`) and splitting on horizontal gaps wider than `:x-tolerance`."
   (:refer-clojure :exclude [chars])
   (:require [clojure.string :as str]
-            [pdfplumber.geometry :as g])
+            [pdfplumber.geometry :as g]
+            [pdfplumber.page :as page])
   (:import [org.apache.pdfbox.pdmodel PDDocument]
            [org.apache.pdfbox.text PDFTextStripper TextPosition]
            [org.apache.pdfbox.util Matrix]
@@ -108,11 +109,13 @@
    (keep chars whose center falls inside `[x0 top x1 bottom]`)."
   ([doc] (chars doc {}))
   ([^PDDocument doc opts]
-   (let [{:keys [page bbox use-text-flow]} (normalize-options opts)
+   (let [{:keys [page bbox use-text-flow view-operations]} (normalize-options opts)
          pages (if page [(long page)] (range 1 (inc (.getNumberOfPages doc))))
          cs (into [] (mapcat #(page-chars doc % use-text-flow)) pages)]
-     (cond->> cs
-       bbox (filterv #(g/within? bbox (g/center (char-bbox %))))))))
+     (cond-> (if (and bbox (not view-operations))
+               (filterv #(g/within? bbox (g/center (char-bbox %))) cs)
+               cs)
+       view-operations (page/apply-view view-operations)))))
 
 (defn- whitespace? [s]
   (or (nil? s) (str/blank? s)))

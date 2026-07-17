@@ -1,7 +1,7 @@
 (ns pdfplumber.core
   "Public API for pdfplumber-clj: open PDFs and extract text, words, characters,
    geometric objects, and tables as plain Clojure data."
-  (:refer-clojure :exclude [chars])
+  (:refer-clojure :exclude [chars filter])
   (:require [pdfplumber.document :as document]
             [pdfplumber.text :as text]
             [pdfplumber.objects :as objects]
@@ -37,6 +37,28 @@
    `pdfplumber.page/crop-page`."
   [doc opts]
   (page/crop-page doc opts))
+
+(defn crop
+  "Derived page crop with partial-object clipping."
+  ([source bbox] (page/crop source bbox))
+  ([source bbox opts] (page/crop source bbox opts)))
+
+(defn within-bbox
+  "Derived view containing only wholly enclosed objects."
+  ([source bbox] (page/within-bbox source bbox))
+  ([source bbox opts] (page/within-bbox source bbox opts)))
+
+(defn outside-bbox
+  "Derived view containing only objects outside a bbox."
+  ([source bbox] (page/outside-bbox source bbox))
+  ([source bbox opts] (page/outside-bbox source bbox opts)))
+
+(defn filter-page
+  "Derived view filtered by an object predicate."
+  ([source pred] (page/filter source pred))
+  ([source pred opts] (page/filter source pred opts)))
+
+(def filter filter-page)
 
 (defn page-view?
   "True when `x` is a cropped page view. See `pdfplumber.page/page-view?`."

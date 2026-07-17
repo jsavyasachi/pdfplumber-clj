@@ -6,7 +6,8 @@
    space (bottom-left origin); we collect painted subpaths and flip them to the
    public top-left coordinate system. Only painted paths (stroked/filled) yield
    objects; clip-only / no-paint paths are discarded."
-  (:require [pdfplumber.geometry :as g])
+  (:require [pdfplumber.geometry :as g]
+            [pdfplumber.page :as page])
   (:import [org.apache.pdfbox.pdmodel PDDocument PDPage]
            [org.apache.pdfbox.contentstream PDFGraphicsStreamEngine]
            [org.apache.pdfbox.cos COSName]
@@ -168,12 +169,14 @@
    `:types` (a set to keep), `:bbox` (keep intersecting objects), and
    `:include-image-data?` (attach decoded PNG `:bytes`; false by default)."
   ([doc] (objects doc {}))
-  ([^PDDocument doc {:keys [page bbox types include-image-data?]}]
+  ([^PDDocument doc {:keys [page bbox types include-image-data? view-operations]}]
    (let [pages (if page [(long page)] (range 1 (inc (.getNumberOfPages doc))))
          all (into [] (mapcat #(page-objects doc % include-image-data?)) pages)]
-     (cond->> all
-       types (filterv #(contains? types (:type %)))
-       bbox (filterv #(g/intersects? bbox (obj-bbox %)))))))
+     (cond-> (cond->> all
+               types (filterv #(contains? types (:type %)))
+               (and bbox (not view-operations))
+               (filterv #(g/intersects? bbox (obj-bbox %))))
+       view-operations (page/apply-view view-operations)))))
 
 (defn images
   "Vector of drawn image objects. Accepts the same options as `objects`; decoded
