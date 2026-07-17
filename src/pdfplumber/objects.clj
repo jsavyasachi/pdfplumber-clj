@@ -68,9 +68,11 @@
 (defn- curve-obj [page-h page-no doctop-offset attrs points]
   (let [xs (map first points)
         tops (map #(g/flip-y page-h (second %)) points)
+        pts (mapv (fn [[x y]] [(double x) (double (g/flip-y page-h y))]) points)
         x0 (apply min xs) top (apply min tops)
         x1 (apply max xs) bottom (apply max tops)]
-    (rich-bbox :curve page-h page-no doctop-offset x0 top x1 bottom attrs)))
+    (assoc (rich-bbox :curve page-h page-no doctop-offset x0 top x1 bottom attrs)
+           :pts pts)))
 
 (defn- png-bytes ^bytes [^PDImage image]
   (let [out (ByteArrayOutputStream.)]
@@ -184,3 +186,78 @@
   ([doc] (images doc {}))
   ([doc opts]
    (objects doc (assoc opts :types #{:image}))))
+
+(defn lines
+  "Dedicated collection of painted line objects."
+  ([doc] (lines doc {}))
+  ([doc opts] (objects doc (assoc opts :types #{:line}))))
+
+(defn rects
+  "Dedicated collection of painted rectangle objects."
+  ([doc] (rects doc {}))
+  ([doc opts] (objects doc (assoc opts :types #{:rect}))))
+
+(defn curves
+  "Dedicated collection of painted Bézier curve objects."
+  ([doc] (curves doc {}))
+  ([doc opts] (objects doc (assoc opts :types #{:curve}))))
+
+(defn objects-by-type
+  "Object collections grouped under singular type keywords."
+  ([doc] (objects-by-type doc {}))
+  ([doc opts] (into {} (map (fn [[type values]] [type (vec values)]))
+                    (group-by :type (objects doc opts)))))
+
+(defn- edge-record [source object-type [x0 top] [x1 bottom]]
+  (let [lo-x (min x0 x1) hi-x (max x0 x1)
+        lo-top (min top bottom) hi-bottom (max top bottom)
+        orientation (cond
+                      (<= (- hi-bottom lo-top) orient-tolerance) :horizontal
+                      (<= (- hi-x lo-x) orient-tolerance) :vertical
+                      :else :other)
+        page-height (when (:y0 source) (+ (:bottom source) (:y0 source)))
+        doctop-offset (when (:doctop source) (- (:doctop source) (:top source)))]
+    (merge (select-keys source [:page-number :linewidth :stroking-color
+                                :non-stroking-color])
+           {:type :line :object-type object-type
+            :x0 lo-x :top lo-top :x1 hi-x :bottom hi-bottom
+            :width (- hi-x lo-x) :height (- hi-bottom lo-top)
+            :orientation orientation}
+           (when page-height
+             {:y0 (- page-height hi-bottom) :y1 (- page-height lo-top)})
+           (when doctop-offset {:doctop (+ doctop-offset lo-top)}))))
+
+(defn- rect-edges [rect]
+  (let [{:keys [x0 top x1 bottom]} rect]
+    [(edge-record rect :rect-edge [x0 top] [x1 top])
+     (edge-record rect :rect-edge [x0 bottom] [x1 bottom])
+     (edge-record rect :rect-edge [x0 top] [x0 bottom])
+     (edge-record rect :rect-edge [x1 top] [x1 bottom])]))
+
+(defn- curve-edges [curve]
+  (mapv #(edge-record curve :curve-edge (first %) (second %))
+        (partition 2 1 (:pts curve))))
+
+(defn edges
+  "Normalized horizontal and vertical edges from lines, rectangles, and curves."
+  ([doc] (edges doc {}))
+  ([doc opts]
+   (let [objs (objects doc (dissoc opts :types))
+         raw (concat
+              (map #(assoc % :object-type :line) (filter #(= :line (:type %)) objs))
+              (mapcat rect-edges (filter #(= :rect (:type %)) objs))
+              (mapcat curve-edges (filter #(= :curve (:type %)) objs)))
+         horizontal (filter #(= :horizontal (:orientation %)) raw)
+         vertical (filter #(= :vertical (:orientation %)) raw)
+         other (filter #(= :other (:orientation %)) raw)]
+     (vec (concat horizontal vertical other)))))
+
+(defn horizontal-edges
+  "Horizontal subset of `edges`."
+  ([doc] (horizontal-edges doc {}))
+  ([doc opts] (filterv #(= :horizontal (:orientation %)) (edges doc opts))))
+
+(defn vertical-edges
+  "Vertical subset of `edges`."
+  ([doc] (vertical-edges doc {}))
+  ([doc opts] (filterv #(= :vertical (:orientation %)) (edges doc opts))))

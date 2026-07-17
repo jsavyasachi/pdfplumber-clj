@@ -100,3 +100,33 @@
 (deftest no-images
   (pdf/with-pdf [d (fix/simple-text-pdf)]
     (is (= [] (pdf/images d)))))
+
+(deftest typed-collections-and-edges
+  (pdf/with-pdf [d (fix/ruled-pdf)]
+    (let [lines-var (ns-resolve 'pdfplumber.core 'lines)
+          rects-var (ns-resolve 'pdfplumber.core 'rects)
+          curves-var (ns-resolve 'pdfplumber.core 'curves)
+          grouped-var (ns-resolve 'pdfplumber.core 'objects-by-type)
+          edges-var (ns-resolve 'pdfplumber.core 'edges)
+          horizontal-var (ns-resolve 'pdfplumber.core 'horizontal-edges)
+          vertical-var (ns-resolve 'pdfplumber.core 'vertical-edges)]
+      (is (every? some? [lines-var rects-var curves-var grouped-var edges-var
+                         horizontal-var vertical-var]))
+      (when (every? some? [lines-var rects-var curves-var grouped-var edges-var
+                           horizontal-var vertical-var])
+        (is (= 2 (count (lines-var d))))
+        (is (= 1 (count (rects-var d))))
+        (is (= [] (curves-var d)))
+        (is (= #{:line :rect} (set (keys (grouped-var d)))))
+        (let [edges (edges-var d)]
+          (is (= 6 (count edges)))
+          (is (= edges (vec (concat (horizontal-var d) (vertical-var d)))))
+          (is (every? #(contains? #{:horizontal :vertical} (:orientation %)) edges))
+          (is (= 4 (count (filter #(= :rect-edge (:object-type %)) edges))))))))
+  (pdf/with-pdf [d (fix/curve-pdf)]
+    (let [curves-var (ns-resolve 'pdfplumber.core 'curves)
+          edges-var (ns-resolve 'pdfplumber.core 'edges)]
+      (when (and curves-var edges-var)
+        (is (= 1 (count (curves-var d))))
+        (is (seq (:pts (first (curves-var d)))))
+        (is (seq (filter #(= :curve-edge (:object-type %)) (edges-var d))))))))

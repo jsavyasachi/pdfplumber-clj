@@ -84,6 +84,20 @@
         (.addRect cs (float 100) (float 400) (float 200) (float 100)) (.stroke cs)))
     (->bytes doc)))
 
+(defn curve-pdf
+  "Single page with one painted cubic Bézier path."
+  ^bytes []
+  (with-open [doc (PDDocument.)]
+    (let [page (PDPage. PDRectangle/LETTER)]
+      (.addPage doc page)
+      (with-open [cs (PDPageContentStream. doc page)]
+        (.moveTo cs (float 72) (float 600))
+        (.curveTo cs (float 120) (float 650)
+                  (float 180) (float 550)
+                  (float 240) (float 600))
+        (.stroke cs)))
+    (->bytes doc)))
+
 (defn table-pdf
   "Single US-Letter page with a 2x2 ruled table: vertical rules at x=72/300/540,
    horizontal rules at y=700/670/640, and the cells Date|Amount over

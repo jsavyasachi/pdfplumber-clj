@@ -119,6 +119,44 @@
   ([source] (images source {}))
   ([source opts] (let [[doc o] (page/resolve-source source opts)] (objects/images doc o))))
 
+(defn lines
+  "Painted line objects. See `pdfplumber.objects/lines`."
+  ([source] (lines source {}))
+  ([source opts] (let [[doc o] (page/resolve-source source opts)] (objects/lines doc o))))
+
+(defn rects
+  "Painted rectangle objects. See `pdfplumber.objects/rects`."
+  ([source] (rects source {}))
+  ([source opts] (let [[doc o] (page/resolve-source source opts)] (objects/rects doc o))))
+
+(defn curves
+  "Painted curve objects. See `pdfplumber.objects/curves`."
+  ([source] (curves source {}))
+  ([source opts] (let [[doc o] (page/resolve-source source opts)] (objects/curves doc o))))
+
+(defn objects-by-type
+  "Object maps grouped by type. See `pdfplumber.objects/objects-by-type`."
+  ([source] (objects-by-type source {}))
+  ([source opts] (let [[doc o] (page/resolve-source source opts)]
+                   (objects/objects-by-type doc o))))
+
+(defn edges
+  "Normalized page edges. See `pdfplumber.objects/edges`."
+  ([source] (edges source {}))
+  ([source opts] (let [[doc o] (page/resolve-source source opts)] (objects/edges doc o))))
+
+(defn horizontal-edges
+  "Horizontal page edges. See `pdfplumber.objects/horizontal-edges`."
+  ([source] (horizontal-edges source {}))
+  ([source opts] (let [[doc o] (page/resolve-source source opts)]
+                   (objects/horizontal-edges doc o))))
+
+(defn vertical-edges
+  "Vertical page edges. See `pdfplumber.objects/vertical-edges`."
+  ([source] (vertical-edges source {}))
+  ([source opts] (let [[doc o] (page/resolve-source source opts)]
+                   (objects/vertical-edges doc o))))
+
 (defn extract-table
   "Extract a single table. Accepts a document handle or a cropped page view. See
    `pdfplumber.table/extract-table`."
