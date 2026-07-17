@@ -71,6 +71,12 @@
   ([source] (chars source {}))
   ([source opts] (let [[doc o] (page/resolve-source source opts)] (text/chars doc o))))
 
+(defn dedupe-chars
+  "Extract and deduplicate chars. See `pdfplumber.text/dedupe-chars`."
+  ([source] (dedupe-chars source {}))
+  ([source opts] (let [[doc o] (page/resolve-source source opts)]
+                   (text/dedupe-chars doc o))))
+
 (defn words
   "Vector of word maps. Accepts a document handle or a cropped page view. See
    `pdfplumber.text/words`."

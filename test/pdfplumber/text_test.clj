@@ -120,3 +120,14 @@
           (is (< (:top match) (:bottom match))))
         (is (= ["second line"]
                (mapv :text (search-var d "second line" {:regex false}))))))))
+
+(deftest character-deduplication
+  (pdf/with-pdf [d (fix/duplicate-text-pdf)]
+    (let [dedupe-var (ns-resolve 'pdfplumber.core 'dedupe-chars)]
+      (is (some? dedupe-var))
+      (when dedupe-var
+        (is (= 2 (count (pdf/chars d))))
+        (is (= 1 (count (dedupe-var d {:tolerance 11.0}))))
+        (is (= 2 (count (dedupe-var d {:tolerance 0.1}))))
+        (is (= 1 (count (dedupe-var d {:tolerance 11.0
+                                       :compare-attrs [:fontname :size]}))))))))

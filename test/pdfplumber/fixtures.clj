@@ -69,6 +69,21 @@
           (.endText cs))))
     (->bytes doc)))
 
+(defn duplicate-text-pdf
+  "Single page with the same glyph painted twice at nearby positions."
+  ^bytes []
+  (with-open [doc (PDDocument.)]
+    (let [page (PDPage. PDRectangle/LETTER)]
+      (.addPage doc page)
+      (with-open [cs (PDPageContentStream. doc page)]
+        (doseq [x [72.0 82.0]]
+          (.beginText cs)
+          (.setFont cs (helvetica) (float 12))
+          (.newLineAtOffset cs (float x) (float 700))
+          (.showText cs "A")
+          (.endText cs))))
+    (->bytes doc)))
+
 (defn ruled-pdf
   "Single US-Letter page with a horizontal rule (y=700, x 72..540), a vertical
    rule (x=72, y 500..700), and a stroked rectangle (x=100 y=400 w=200 h=100),

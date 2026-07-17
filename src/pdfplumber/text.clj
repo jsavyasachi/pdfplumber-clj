@@ -335,6 +335,30 @@
                                  (chars-bounds contributing))))))
          matches)))))
 
+(defn dedupe-char-records
+  "Remove duplicate chars within positional `:tolerance`, comparing `:text`
+   plus configurable `:compare-attrs` (default fontname, size, upright)."
+  ([char-records] (dedupe-char-records char-records {}))
+  ([char-records {:keys [tolerance compare-attrs extra-attrs]
+                  :or {tolerance 1.0}}]
+   (let [attrs (vec (distinct (cons :text (or compare-attrs extra-attrs
+                                                [:fontname :size :upright]))))
+         same? (fn [a b]
+                 (and (every? #(= (get a %) (get b %)) attrs)
+                      (<= (Math/abs (- (double (:x0 a)) (double (:x0 b))))
+                          tolerance)
+                      (<= (Math/abs (- (double (:doctop a)) (double (:doctop b))))
+                          tolerance)))]
+     (reduce (fn [kept c]
+               (if (some #(same? % c) kept) kept (conj kept c)))
+             [] char-records))))
+
+(defn dedupe-chars
+  "Extract chars and remove positional duplicates. Extraction and comparison
+   options share the same map."
+  ([doc] (dedupe-chars doc {}))
+  ([doc opts] (dedupe-char-records (chars doc opts) opts)))
+
 (defn text
   "Reconstructed text: words joined by spaces within a line, lines by newlines.
    Accepts the same options as `words`."
