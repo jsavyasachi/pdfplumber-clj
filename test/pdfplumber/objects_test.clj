@@ -39,6 +39,22 @@
           (is (approx= 292.0 (:top r)))
           (is (approx= 392.0 (:bottom r))))))))
 
+(deftest rich-graphics-records
+  (pdf/with-pdf [d (fix/ruled-pdf)]
+    (doseq [o (pdf/objects d)]
+      (testing (str "complete " (:type o) " record")
+        (is (every? #(contains? o %)
+                    [:x0 :x1 :y0 :y1 :top :bottom :width :height :doctop
+                     :page-number :linewidth :stroking-color
+                     :non-stroking-color :object-type]))
+        (is (= (:type o) (:object-type o)))
+        (is (== (- (:x1 o) (:x0 o)) (:width o)))
+        (is (== (- (:bottom o) (:top o)) (:height o)))
+        (is (== (- 792.0 (:bottom o)) (:y0 o)))
+        (is (== (- 792.0 (:top o)) (:y1 o)))
+        (is (== (:top o) (:doctop o)))
+        (is (== 1.0 (:linewidth o)))))))
+
 (deftest type-and-bbox-filtering
   (pdf/with-pdf [d (fix/ruled-pdf)]
     (testing ":types filter restricts object kinds"

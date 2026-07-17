@@ -10,24 +10,48 @@
             [pdfplumber.geometry :as g])
   (:import [org.apache.pdfbox.pdmodel PDDocument]
            [org.apache.pdfbox.text PDFTextStripper TextPosition]
+           [org.apache.pdfbox.util Matrix]
            [java.util List]))
 
 (set! *warn-on-reflection* true)
 
 (def ^:private default-tolerance 3.0)
 
-(defn- tp->char [^TextPosition tp ^long page-no]
+(defn- matrix-values [^Matrix matrix]
+  [(double (.getScaleX matrix))
+   (double (.getShearY matrix))
+   (double (.getShearX matrix))
+   (double (.getScaleY matrix))
+   (double (.getTranslateX matrix))
+   (double (.getTranslateY matrix))])
+
+(defn- tp->char [^TextPosition tp ^long page-no page-height doctop-offset]
   (let [x0 (double (.getXDirAdj tp))
         w (double (.getWidthDirAdj tp))
         h (double (.getHeightDir tp))
-        bottom (double (.getYDirAdj tp))]
+        bottom (double (.getYDirAdj tp))
+        top (- bottom h)
+        fontname (some-> (.getFont tp) .getName)
+        size (double (.getFontSizeInPt tp))]
     {:text (.getUnicode tp)
      :x0 x0
-     :top (- bottom h)
+     :top top
      :x1 (+ x0 w)
      :bottom bottom
-     :font-name (some-> (.getFont tp) .getName)
-     :font-size (double (.getFontSizeInPt tp))
+     :y0 (- page-height bottom)
+     :y1 (- page-height top)
+     :width w
+     :height h
+     :doctop (+ doctop-offset top)
+     :fontname fontname
+     :size size
+     :adv w
+     :upright (zero? (mod (double (.getDir tp)) 360.0))
+     :matrix (matrix-values (.getTextMatrix tp))
+     :object-type :char
+     ;; Legacy spellings remain supported.
+     :font-name fontname
+     :font-size size
      :page-number page-no}))
 
 (defn- char-bbox [c]
@@ -35,15 +59,23 @@
 
 (defn- collecting-stripper
   "A PDFTextStripper that appends each char map (tagged with `page-no`) to `acc`."
-  ^PDFTextStripper [acc ^long page-no]
+  ^PDFTextStripper [acc ^long page-no page-height doctop-offset]
   (proxy [PDFTextStripper] []
     (writeString [^String _text ^List text-positions]
       (doseq [^TextPosition tp text-positions]
-        (swap! acc conj (tp->char tp page-no))))))
+        (swap! acc conj (tp->char tp page-no page-height doctop-offset))))))
+
+(defn- page-height [^PDDocument doc ^long p]
+  (double (.getHeight (.getMediaBox (.getPage doc (dec (int p)))))))
+
+(defn- doctop-offset [^PDDocument doc ^long p]
+  (reduce + 0.0 (map #(page-height doc %) (range 1 p))))
 
 (defn- page-chars [^PDDocument doc ^long p]
   (let [acc (atom [])
-        ^PDFTextStripper stripper (collecting-stripper acc p)]
+        height (page-height doc p)
+        ^PDFTextStripper stripper (collecting-stripper acc p height
+                                                       (doctop-offset doc p))]
     (.setSortByPosition stripper true)
     (.setStartPage stripper (int p))
     (.setEndPage stripper (int p))

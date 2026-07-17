@@ -17,6 +17,28 @@
           (is (< 11.0 (:font-size h) 13.0))     ; drawn at 12pt
           (is (re-find #"(?i)helvetica" (:font-name h))))))))
 
+(deftest rich-char-records
+  (pdf/with-pdf [d (fix/multi-page-pdf ["A" "B"])]
+    (let [[a b] (pdf/chars d)]
+      (testing "pdfplumber-compatible character attributes"
+        (is (every? #(contains? a %)
+                    [:x0 :x1 :y0 :y1 :top :bottom :width :height :doctop
+                     :page-number :fontname :size :adv :upright :matrix
+                     :object-type]))
+        (is (= :char (:object-type a)))
+        (is (= (:font-name a) (:fontname a)))
+        (is (== (:font-size a) (:size a)))
+        (is (== (- (:x1 a) (:x0 a)) (:width a)))
+        (is (== (- (:bottom a) (:top a)) (:height a)))
+        (is (== (- 792.0 (:bottom a)) (:y0 a)))
+        (is (== (- 792.0 (:top a)) (:y1 a)))
+        (is (number? (:adv a)))
+        (is (boolean? (:upright a)))
+        (is (= 6 (count (:matrix a)))))
+      (testing "doctop is cumulative across pages"
+        (is (== (:top a) (:doctop a)))
+        (is (== (+ 792.0 (:top b)) (:doctop b)))))))
+
 (deftest words-grouping
   (pdf/with-pdf [d (fix/simple-text-pdf)]
     (testing "splits on the space into two words"

@@ -11,6 +11,8 @@
            [org.apache.pdfbox.contentstream PDFGraphicsStreamEngine]
            [org.apache.pdfbox.cos COSName]
            [org.apache.pdfbox.pdmodel.graphics.image PDImage]
+           [org.apache.pdfbox.pdmodel.graphics.color PDColor]
+           [org.apache.pdfbox.pdmodel.graphics.state PDGraphicsState]
            [org.apache.pdfbox.util Matrix]
            [java.awt.geom Point2D Point2D$Float]
            [java.io ByteArrayOutputStream]
@@ -22,36 +24,52 @@
 
 (defn- pt [^Point2D p] [(.getX p) (.getY p)])
 
-(defn- line-obj [page-h page-no [x0 y0] [x1 y1]]
+(defn- color-components [^PDColor color]
+  (some->> color .getComponents (mapv double)))
+
+(defn- paint-attrs [^PDFGraphicsStreamEngine engine]
+  (let [^PDGraphicsState gs (.getGraphicsState engine)]
+    {:linewidth (double (.getLineWidth gs))
+     :stroking-color (color-components (.getStrokingColor gs))
+     :non-stroking-color (color-components (.getNonStrokingColor gs))}))
+
+(defn- rich-bbox [type page-h page-no doctop-offset x0 top x1 bottom attrs]
+  (merge {:type type
+          :object-type type
+          :x0 x0 :top top :x1 x1 :bottom bottom
+          :y0 (- page-h bottom) :y1 (- page-h top)
+          :width (- x1 x0) :height (- bottom top)
+          :doctop (+ doctop-offset top)
+          :page-number page-no}
+         attrs))
+
+(defn- line-obj [page-h page-no doctop-offset attrs [x0 y0] [x1 y1]]
   (let [t0 (g/flip-y page-h y0)
         t1 (g/flip-y page-h y1)
         top (min t0 t1)
         bottom (max t0 t1)
         lo-x (min x0 x1)
         hi-x (max x0 x1)]
-    {:type :line
-     :x0 lo-x :top top :x1 hi-x :bottom bottom
-     :orientation (cond
-                    (<= (- bottom top) orient-tolerance) :horizontal
-                    (<= (- hi-x lo-x) orient-tolerance) :vertical
-                    :else :other)
-     :page-number page-no}))
+    (assoc (rich-bbox :line page-h page-no doctop-offset
+                      lo-x top hi-x bottom attrs)
+           :orientation (cond
+                          (<= (- bottom top) orient-tolerance) :horizontal
+                          (<= (- hi-x lo-x) orient-tolerance) :vertical
+                          :else :other))))
 
-(defn- rect-obj [page-h page-no corners]
+(defn- rect-obj [page-h page-no doctop-offset attrs corners]
   (let [xs (map first corners)
-        tops (map #(g/flip-y page-h (second %)) corners)]
-    {:type :rect
-     :x0 (apply min xs) :top (apply min tops)
-     :x1 (apply max xs) :bottom (apply max tops)
-     :page-number page-no}))
+        tops (map #(g/flip-y page-h (second %)) corners)
+        x0 (apply min xs) top (apply min tops)
+        x1 (apply max xs) bottom (apply max tops)]
+    (rich-bbox :rect page-h page-no doctop-offset x0 top x1 bottom attrs)))
 
-(defn- curve-obj [page-h page-no points]
+(defn- curve-obj [page-h page-no doctop-offset attrs points]
   (let [xs (map first points)
-        tops (map #(g/flip-y page-h (second %)) points)]
-    {:type :curve
-     :x0 (apply min xs) :top (apply min tops)
-     :x1 (apply max xs) :bottom (apply max tops)
-     :page-number page-no}))
+        tops (map #(g/flip-y page-h (second %)) points)
+        x0 (apply min xs) top (apply min tops)
+        x1 (apply max xs) bottom (apply max tops)]
+    (rich-bbox :curve page-h page-no doctop-offset x0 top x1 bottom attrs)))
 
 (defn- png-bytes ^bytes [^PDImage image]
   (let [out (ByteArrayOutputStream.)]
@@ -81,15 +99,16 @@
 
 (defn- object-engine
   "A PDFGraphicsStreamEngine that appends top-left object maps to `out`."
-  ^PDFGraphicsStreamEngine [^PDPage page ^long page-no out include-image-data?]
+  ^PDFGraphicsStreamEngine [^PDPage page page-no doctop-offset out include-image-data?]
   (let [page-h (double (.getHeight (.getMediaBox page)))
         st (atom {:cur nil :start nil :lines [] :rects [] :curves []})
         engine-holder (atom nil)
         flush! (fn []
-                 (let [{:keys [lines rects curves]} @st]
-                   (doseq [[a b] lines] (swap! out conj (line-obj page-h page-no a b)))
-                   (doseq [r rects] (swap! out conj (rect-obj page-h page-no r)))
-                   (doseq [c curves] (swap! out conj (curve-obj page-h page-no c)))
+                 (let [{:keys [lines rects curves]} @st
+                       attrs (paint-attrs ^PDFGraphicsStreamEngine @engine-holder)]
+                   (doseq [[a b] lines] (swap! out conj (line-obj page-h page-no doctop-offset attrs a b)))
+                   (doseq [r rects] (swap! out conj (rect-obj page-h page-no doctop-offset attrs r)))
+                   (doseq [c curves] (swap! out conj (curve-obj page-h page-no doctop-offset attrs c)))
                    (swap! st assoc :lines [] :rects [] :curves [])))
         clear! (fn [] (swap! st assoc :lines [] :rects [] :curves []))
         engine
@@ -128,10 +147,14 @@
     (clojure.core/reset! engine-holder engine)
     engine))
 
+(defn- page-height [^PDDocument doc ^long p]
+  (double (.getHeight (.getMediaBox (.getPage doc (dec (int p)))))))
+
 (defn- page-objects [^PDDocument doc ^long p include-image-data?]
   (let [page (.getPage doc (dec (int p)))
+        offset (reduce + 0.0 (map #(page-height doc %) (range 1 p)))
         out (atom [])
-        ^PDFGraphicsStreamEngine engine (object-engine page p out include-image-data?)]
+        ^PDFGraphicsStreamEngine engine (object-engine page p offset out include-image-data?)]
     (.processPage engine page)
     @out))
 
