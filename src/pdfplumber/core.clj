@@ -55,11 +55,35 @@
   ([source] (words source {}))
   ([source opts] (let [[doc o] (page/resolve-source source opts)] (text/words doc o))))
 
+(defn extract-words
+  "Advanced word extraction. See `pdfplumber.text/extract-words`."
+  ([source] (extract-words source {}))
+  ([source opts] (let [[doc o] (page/resolve-source source opts)]
+                   (text/extract-words doc o))))
+
+(defn word-map
+  "Words and their contributing chars. See `pdfplumber.text/word-map`."
+  ([source] (word-map source {}))
+  ([source opts] (let [[doc o] (page/resolve-source source opts)]
+                   (text/word-map doc o))))
+
 (defn text
   "Reconstructed text string. Accepts a document handle or a cropped page view.
    See `pdfplumber.text/text`."
   ([source] (text source {}))
   ([source opts] (let [[doc o] (page/resolve-source source opts)] (text/text doc o))))
+
+(defn extract-text
+  "Advanced text extraction. See `pdfplumber.text/extract-text`."
+  ([source] (extract-text source {}))
+  ([source opts] (let [[doc o] (page/resolve-source source opts)]
+                   (text/extract-text doc o))))
+
+(defn text-map
+  "Text and its source-char mapping. See `pdfplumber.text/text-map`."
+  ([source] (text-map source {}))
+  ([source opts] (let [[doc o] (page/resolve-source source opts)]
+                   (text/text-map doc o))))
 
 (defn objects
   "Vector of page object maps (lines, rects, curves, images). Accepts a document

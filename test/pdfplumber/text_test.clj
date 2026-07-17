@@ -65,3 +65,38 @@
     (testing "extraction limited to a single page"
       (is (= ["two"] (mapv :text (pdf/words d {:page 2}))))
       (is (= [2] (distinct (map :page-number (pdf/chars d {:page 2}))))))))
+
+(deftest advanced-word-options
+  (pdf/with-pdf [d (fix/advanced-text-pdf)]
+    (testing "punctuation can become separate words"
+      (is (= ["alpha" "," "beta" "right" "second" "line"]
+             (mapv :text (pdf/words d {:split-at-punctuation true})))))
+    (testing "blank characters can remain inside words"
+      (is (= ["second line"]
+             (->> (pdf/words d {:keep-blank-chars true})
+                  (filter #(str/starts-with? (:text %) "second"))
+                  (mapv :text)))))
+    (testing "right-to-left output reverses characters and word order"
+      (is (= "thgir" (:text (nth (pdf/words d {:horizontal-ltr false}) 0)))))
+    (testing "extra attributes are copied to word records"
+      (is (every? #(re-find #"(?i)helvetica" (:fontname %))
+                  (pdf/words d {:extra-attrs [:fontname]}))))
+    (testing "text flow preserves content-stream order"
+      (is (= "right" (:text (first (pdf/words d {:use-text-flow true}))))))))
+
+(deftest text-maps-and-layout
+  (pdf/with-pdf [d (fix/advanced-text-pdf)]
+    (let [extract-text-var (ns-resolve 'pdfplumber.core 'extract-text)
+          extract-words-var (ns-resolve 'pdfplumber.core 'extract-words)
+          word-map-var (ns-resolve 'pdfplumber.core 'word-map)
+          text-map-var (ns-resolve 'pdfplumber.core 'text-map)]
+      (is (every? some? [extract-text-var extract-words-var word-map-var text-map-var]))
+      (when (every? some? [extract-text-var extract-words-var word-map-var text-map-var])
+        (is (= (pdf/words d) (extract-words-var d)))
+        (let [wm (word-map-var d)
+              tm (text-map-var d)
+              laid-out (extract-text-var d {:layout true :x-density 6.0})]
+          (is (= (count (:words wm)) (count (:word-chars wm))))
+          (is (= (:text tm) (apply str (map second (:tuples tm)))))
+          (is (every? #(or (nil? (first %)) (map? (first %))) (:tuples tm)))
+          (is (re-find #"alpha,beta\s{5,}right" laid-out)))))))

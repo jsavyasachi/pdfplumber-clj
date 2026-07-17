@@ -52,6 +52,23 @@
           (.endText cs))))
     (->bytes doc)))
 
+(defn advanced-text-pdf
+  "Single page with punctuation and two widely separated columns."
+  ^bytes []
+  (with-open [doc (PDDocument.)]
+    (let [page (PDPage. PDRectangle/LETTER)]
+      (.addPage doc page)
+      (with-open [cs (PDPageContentStream. doc page)]
+        (doseq [[s x y] [["right" 300 700]
+                         ["alpha,beta" 72 700]
+                         ["second line" 72 670]]]
+          (.beginText cs)
+          (.setFont cs (helvetica) (float 12))
+          (.newLineAtOffset cs (float x) (float y))
+          (.showText cs ^String s)
+          (.endText cs))))
+    (->bytes doc)))
+
 (defn ruled-pdf
   "Single US-Letter page with a horizontal rule (y=700, x 72..540), a vertical
    rule (x=72, y 500..700), and a stroked rectangle (x=100 y=400 w=200 h=100),
