@@ -7,7 +7,8 @@
    public top-left coordinate system. Only painted paths (stroked/filled) yield
    objects; clip-only / no-paint paths are discarded."
   (:require [pdfplumber.geometry :as g]
-            [pdfplumber.page :as page])
+            [pdfplumber.page :as page]
+            [clojure.string :as str])
   (:import [org.apache.pdfbox.pdmodel PDDocument PDPage]
            [org.apache.pdfbox.contentstream PDFGraphicsStreamEngine]
            [org.apache.pdfbox.cos COSName]
@@ -15,8 +16,10 @@
            [org.apache.pdfbox.pdmodel.graphics.color PDColor]
            [org.apache.pdfbox.pdmodel.graphics.state PDGraphicsState]
            [org.apache.pdfbox.pdmodel.interactive.annotation PDAnnotation PDAnnotationLink
-            PDAnnotationMarkup]
+            PDAnnotationMarkup PDAnnotationWidget]
            [org.apache.pdfbox.pdmodel.interactive.action PDActionURI]
+           [org.apache.pdfbox.pdmodel.interactive.form PDAcroForm PDButton PDChoice
+            PDField PDSignatureField PDTerminalField PDTextField]
            [org.apache.pdfbox.util Matrix]
            [java.awt.geom Point2D Point2D$Float]
            [java.io ByteArrayOutputStream]
@@ -265,7 +268,34 @@
   ([doc] (vertical-edges doc {}))
   ([doc opts] (filterv #(= :vertical (:orientation %)) (edges doc opts))))
 
-(defn- annotation-obj [page-height page-no doctop-offset ^PDAnnotation annotation]
+(defn- field-type [^PDField field]
+  (cond
+    (instance? PDTextField field) :text
+    (instance? PDButton field) :button
+    (instance? PDChoice field) :choice
+    (instance? PDSignatureField field) :signature
+    :else (some-> (.getFieldType field) str/lower-case keyword)))
+
+(defn- field-value [^PDField field]
+  (when (and (instance? PDTerminalField field)
+             (not (instance? PDSignatureField field)))
+    (try
+      (.getValueAsString field)
+      (catch Exception _ nil))))
+
+(defn- widget-field-lookup [^PDDocument doc]
+  (if-let [form ^PDAcroForm (some-> doc .getDocumentCatalog .getAcroForm)]
+    (reduce (fn [lookup ^PDField field]
+              (reduce (fn [fields ^PDAnnotationWidget widget]
+                        (assoc fields (.getCOSObject widget) field))
+                      lookup
+                      (.getWidgets field)))
+            {}
+            (.getFieldTree form))
+    {}))
+
+(defn- annotation-obj [page-height page-no doctop-offset field-lookup
+                       ^PDAnnotation annotation]
   (let [rect (.getRectangle annotation)
         x0 (double (.getLowerLeftX rect))
         x1 (double (.getUpperRightX rect))
@@ -275,7 +305,9 @@
                  (.getAction ^PDAnnotationLink annotation))
         uri (when (instance? PDActionURI action) (.getURI ^PDActionURI action))
         title (when (instance? PDAnnotationMarkup annotation)
-                (.getTitlePopup ^PDAnnotationMarkup annotation))]
+                (.getTitlePopup ^PDAnnotationMarkup annotation))
+        field (when (instance? PDAnnotationWidget annotation)
+                (get field-lookup (.getCOSObject ^PDAnnotationWidget annotation)))]
     (cond-> {:type :annot :object-type :annot
              :subtype (.getSubtype annotation)
              :x0 x0 :top top :x1 x1 :bottom bottom
@@ -285,20 +317,24 @@
              :page-number page-no}
       (.getContents annotation) (assoc :contents (.getContents annotation))
       title (assoc :title title)
-      uri (assoc :uri uri))))
+      uri (assoc :uri uri)
+      field (assoc :field-name (.getFullyQualifiedName ^PDField field)
+                   :field-value (field-value field)
+                   :field-type (field-type field)))))
 
 (defn annots
   "All page annotations with positional pdfplumber attributes."
   ([doc] (annots doc {}))
   ([^PDDocument doc {:keys [page bbox view-operations]}]
    (let [pages (if page [(long page)] (range 1 (inc (.getNumberOfPages doc))))
+         field-lookup (widget-field-lookup doc)
          all (into []
                    (mapcat (fn [p]
                              (let [pd-page (.getPage doc (dec (int p)))
                                    height (page-height doc p)
                                    offset (reduce + 0.0
                                                   (map #(page-height doc %) (range 1 p)))]
-                               (map #(annotation-obj height p offset %)
+                               (map #(annotation-obj height p offset field-lookup %)
                                     (.getAnnotations pd-page)))))
                    pages)]
      (cond-> (if (and bbox (not view-operations))

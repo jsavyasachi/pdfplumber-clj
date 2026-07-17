@@ -1,7 +1,11 @@
 (ns pdfplumber.objects-test
   (:require [clojure.test :refer [deftest testing is]]
             [pdfplumber.core :as pdf]
-            [pdfplumber.fixtures :as fix]))
+            [pdfplumber.fixtures :as fix])
+  (:import [org.apache.pdfbox.cos COSName]
+           [org.apache.pdfbox.pdmodel PDDocument PDPage]
+           [org.apache.pdfbox.pdmodel.common PDRectangle]
+           [org.apache.pdfbox.pdmodel.interactive.form PDAcroForm PDTextField]))
 
 (defn- approx= [a b] (<= (Math/abs (- (double a) (double b))) 1.0))
 
@@ -151,3 +155,29 @@
           (is (approx= 142 (:bottom link)))
           (is (= "review this" (:contents (second annots))))
           (is (= "Editor" (:title (second annots)))))))))
+
+(defn- filled-text-field-doc ^PDDocument []
+  (let [doc (PDDocument.)
+        page (PDPage. PDRectangle/LETTER)
+        form (PDAcroForm. doc)
+        field (PDTextField. form)
+        widget (first (.getWidgets field))]
+    (.addPage doc page)
+    (.setAcroForm (.getDocumentCatalog doc) form)
+    (.setPartialName field "customer")
+    (.setString (.getCOSObject field) COSName/V "Ada Lovelace")
+    (.setRectangle widget (PDRectangle. (float 72) (float 650) (float 160) (float 20)))
+    (.setPage widget page)
+    (.setAnnotations page [widget])
+    (.setFields form [field])
+    doc))
+
+(deftest widget-annotations-include-field-values
+  (with-open [doc (filled-text-field-doc)]
+    (let [widget (first (pdf/annots doc))]
+      (is (= "Widget" (:subtype widget)))
+      (is (= "customer" (:field-name widget)))
+      (is (= "Ada Lovelace" (:field-value widget)))
+      (is (= :text (:field-type widget)))))
+  (pdf/with-pdf [doc (fix/annotations-pdf)]
+    (is (every? #(not (contains? % :field-name)) (pdf/annots doc)))))
