@@ -107,6 +107,13 @@
   ([source opts] (let [[doc o] (page/resolve-source source opts)]
                    (text/extract-text doc o))))
 
+(defn extract-text-simple
+  "Fast doctop/char-gap text extraction. See
+   `pdfplumber.text/extract-text-simple`."
+  ([source] (extract-text-simple source {}))
+  ([source opts] (let [[doc o] (page/resolve-source source opts)]
+                   (text/extract-text-simple doc o))))
+
 (defn text-map
   "Text and its source-char mapping. See `pdfplumber.text/text-map`."
   ([source] (text-map source {}))

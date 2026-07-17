@@ -359,6 +359,38 @@
   ([doc] (dedupe-chars doc {}))
   ([doc opts] (dedupe-char-records (chars doc opts) opts)))
 
+(defn- simple-lines [char-records y-tolerance]
+  (reduce (fn [lines c]
+            (let [line (peek lines)
+                  line-top (some-> line first :doctop)]
+              (if (and line-top
+                       (<= (Math/abs (- (double (:doctop c))
+                                        (double line-top)))
+                           y-tolerance))
+                (conj (pop lines) (conj line c))
+                (conj lines [c]))))
+          [] (sort-by :doctop char-records)))
+
+(defn- collate-simple-line [line x-tolerance]
+  (loop [remaining (sort-by :x0 line) prior nil out ""]
+    (if-let [c (first remaining)]
+      (let [gap? (and prior
+                      (> (- (double (:x0 c)) (double (:x1 prior))) x-tolerance))]
+        (recur (rest remaining) c
+               (str out (when gap? " ") (:text c))))
+      out)))
+
+(defn extract-text-simple
+  "Fast text reconstruction by doctop line clustering and direct character-gap
+   spacing, without building word or text maps."
+  ([doc] (extract-text-simple doc {}))
+  ([doc {:keys [x-tolerance y-tolerance]
+         :or {x-tolerance default-tolerance y-tolerance default-tolerance}
+         :as opts}]
+   (->> (simple-lines (chars doc opts) y-tolerance)
+        (map #(collate-simple-line % x-tolerance))
+        (str/join "\n"))))
+
 (defn text
   "Reconstructed text: words joined by spaces within a line, lines by newlines.
    Accepts the same options as `words`."

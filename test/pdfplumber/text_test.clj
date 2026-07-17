@@ -131,3 +131,12 @@
         (is (= 2 (count (dedupe-var d {:tolerance 0.1}))))
         (is (= 1 (count (dedupe-var d {:tolerance 11.0
                                        :compare-attrs [:fontname :size]}))))))))
+
+(deftest simple-text-entry-point
+  (let [simple-var (ns-resolve 'pdfplumber.core 'extract-text-simple)]
+    (is (some? simple-var))
+    (when simple-var
+      (pdf/with-pdf [d (fix/advanced-text-pdf)]
+        (is (= "alpha,beta right\nsecond line" (simple-var d))))
+      (pdf/with-pdf [d (fix/multi-page-pdf ["one" "two"])]
+        (is (= "one\ntwo" (simple-var d)))))))
