@@ -25,13 +25,13 @@ it may still evolve before `1.0`.
 deps.edn
 
 ```clojure
-net.clojars.savya/pdfplumber-clj {:mvn/version "0.2.0"}
+net.clojars.savya/pdfplumber-clj {:mvn/version "0.3.0"}
 ```
 
 Leiningen
 
 ```clojure
-[net.clojars.savya/pdfplumber-clj "0.2.0"]
+[net.clojars.savya/pdfplumber-clj "0.3.0"]
 ```
 
 Requires JDK 17+.

@@ -2,6 +2,17 @@
 
 All notable changes to this project are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.3.0] - 2026-07-16
+### Added
+- Feature-parity pass with Python pdfplumber over PDFBox. All additions are backward compatible.
+- Full char/graphics-object records: bottom-origin coordinates (`y0`/`y1`), `doctop`, `width`/`height`, `object_type`, char `adv`/`upright`/`matrix`, and graphics `linewidth`/`stroking_color`/`non_stroking_color`.
+- Advanced text/word extraction: `extract-text` (layout, keep-blank-chars, use-text-flow), `extract-words` (keep-blank-chars, horizontal-ltr, extra-attrs, split-at-punctuation, expand-ligatures), and `word-map`/`text-map`.
+- Composable derived-page views: `crop` (relative/absolute with partial-object clipping), `within-bbox`, `outside-bbox`, and predicate `filter-page`/`filter`.
+- Typed object collections (`lines`, `rects`, `curves`, `objects-by-type`) and normalized `edges`/`horizontal-edges`/`vertical-edges`.
+- Complete table settings (axis-specific snap/join/intersection tolerances, edge prefilter, forwarded text settings, text-strategy alignment) and a `find-tables`/`find-table` object model with rows/columns/cells/bbox/extract.
+- `extract-text-lines`, positional `search` (regex or literal with bounding boxes and contributing chars), `dedupe-chars`, `extract-text-simple`.
+- Complete page boxes (mediabox/cropbox/bbox with nonzero origins) and `annots`/`hyperlinks`.
+
 ## [0.2.0] - 2026-07-16
 ### Added
 - Multi-table detection with independent vertical and horizontal strategies (`:lines`, `:lines-strict`, `:text`, or `:explicit`), explicit line lists, and configurable snap, join, edge, intersection, and minimum-word tolerances.
