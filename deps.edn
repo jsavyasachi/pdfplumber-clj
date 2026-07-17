@@ -1,14 +1,14 @@
 {:paths ["src" "resources"]
 
  :deps {org.clojure/clojure {:mvn/version "1.12.0"}
-        org.apache.pdfbox/pdfbox {:mvn/version "3.0.8"}}
+        org.apache.pdfbox/pdfbox {:mvn/version "3.0.8"}
+        org.clojure/data.json {:mvn/version "2.5.2"}}
 
  :aliases
  {:test
   {:extra-paths ["test" "dev" "test/resources"]
    :extra-deps {lambdaisland/kaocha {:mvn/version "1.91.1392"}
-                org.slf4j/slf4j-nop {:mvn/version "2.0.18"}
-                org.clojure/data.json {:mvn/version "2.5.2"}}
+                org.slf4j/slf4j-nop {:mvn/version "2.0.18"}}
    :main-opts ["-m" "kaocha.runner"]}
 
   ;; Clojure version overrides for the CI matrix:
