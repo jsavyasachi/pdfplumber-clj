@@ -278,6 +278,21 @@
       (when creator (.setCreator pdi creator)))
     (->bytes doc)))
 
+(defn nonzero-page-boxes-pdf
+  "Page with nonzero MediaBox origin and a distinct CropBox."
+  ^bytes []
+  (with-open [doc (PDDocument.)]
+    (let [media (doto (PDRectangle.)
+                  (.setLowerLeftX (float 10)) (.setLowerLeftY (float 20))
+                  (.setUpperRightX (float 622)) (.setUpperRightY (float 812)))
+          crop (doto (PDRectangle.)
+                 (.setLowerLeftX (float 20)) (.setLowerLeftY (float 30))
+                 (.setUpperRightX (float 600)) (.setUpperRightY (float 800)))
+          page (PDPage. media)]
+      (.setCropBox page crop)
+      (.addPage doc page))
+    (->bytes doc)))
+
 (defn encrypted-pdf
   "Single-page PDF encrypted with the given owner/user passwords. Returns byte[]."
   (^bytes [] (encrypted-pdf "owner" "user"))

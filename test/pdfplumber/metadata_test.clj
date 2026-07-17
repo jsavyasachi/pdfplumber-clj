@@ -45,3 +45,14 @@
                (is (= :page-not-found (:pdfplumber/error (ex-data e))))
                (is (= n (:page (ex-data e))))
                (is (= 1 (:page-count (ex-data e))))))))))
+
+(deftest complete-page-boxes
+  (pdf/with-pdf [d (fix/nonzero-page-boxes-pdf)]
+    (let [p (pdf/page d 1)]
+      (is (= [10.0 -20.0 622.0 772.0] (:mediabox p)))
+      (is (= [20.0 -8.0 600.0 762.0] (:cropbox p)))
+      (is (= (:mediabox p) (:bbox p)))
+      (is (== 612.0 (:width p)))
+      (is (== 792.0 (:height p)))
+      (is (= 0 (:rotation p)))
+      (is (= p (first (pdf/pages d)))))))

@@ -18,8 +18,17 @@
     [source opts [] nil]))
 
 (defn- page-bbox [^PDDocument doc page-number]
-  (let [box (.getMediaBox (.getPage doc (dec (int page-number))))]
-    [0.0 0.0 (double (.getWidth box)) (double (.getHeight box))]))
+  (let [page (.getPage doc (dec (int page-number)))
+        box (.getMediaBox page)
+        rotation (mod (.getRotation page) 360)
+        x0 (double (min (.getLowerLeftX box) (.getUpperRightX box)))
+        y0 (double (min (.getLowerLeftY box) (.getUpperRightY box)))
+        x1 (double (max (.getLowerLeftX box) (.getUpperRightX box)))
+        y1 (double (max (.getLowerLeftY box) (.getUpperRightY box)))
+        [x0 y0 x1 y1] (if (contains? #{90 270} rotation)
+                        [y0 x0 y1 x1] [x0 y0 x1 y1])
+        height (- y1 y0)]
+    [x0 (- height y1) x1 (- height y0)]))
 
 (defn- derived-view [source opts operation bbox]
   (let [[doc merged operations parent-bbox] (source-parts source opts)

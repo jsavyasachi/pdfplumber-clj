@@ -76,19 +76,35 @@
            :creation-date (cal->iso (.getCreationDate info))
            :modification-date (cal->iso (.getModificationDate info))})))
 
+(defn- normalize-box [^PDRectangle box rotation]
+  (let [x0 (double (min (.getLowerLeftX box) (.getUpperRightX box)))
+        y0 (double (min (.getLowerLeftY box) (.getUpperRightY box)))
+        x1 (double (max (.getLowerLeftX box) (.getUpperRightX box)))
+        y1 (double (max (.getLowerLeftY box) (.getUpperRightY box)))]
+    (if (contains? #{90 270} rotation) [y0 x0 y1 x1] [x0 y0 x1 y1])))
+
+(defn- invert-box [[x0 y0 x1 y1] media-height]
+  [x0 (- media-height y1) x1 (- media-height y0)])
+
 (defn- page-map [^PDPage page ^long n]
-  (let [box ^PDRectangle (.getMediaBox page)
-        w (double (.getWidth box))
-        h (double (.getHeight box))]
+  (let [rotation (mod (.getRotation page) 360)
+        media-raw (normalize-box (.getMediaBox page) rotation)
+        media-height (- (nth media-raw 3) (nth media-raw 1))
+        mediabox (invert-box media-raw media-height)
+        cropbox (invert-box (normalize-box (.getCropBox page) rotation) media-height)
+        w (- (nth mediabox 2) (first mediabox))
+        h (- (nth mediabox 3) (second mediabox))]
     {:page-number n
      :width w
      :height h
-     :rotation (.getRotation page)
-     :bbox [0.0 0.0 w h]}))
+     :rotation rotation
+     :mediabox mediabox
+     :cropbox cropbox
+     :bbox mediabox}))
 
 (defn pages
-  "Vector of page maps (`:page-number` `:width` `:height` `:rotation` `:bbox`),
-   in document order with 1-based page numbers."
+  "Vector of page maps with media, crop, and active bounding boxes, dimensions,
+   rotation, and 1-based page numbers."
   [^PDDocument doc]
   (mapv #(page-map (.getPage doc %) (inc %))
         (range (.getNumberOfPages doc))))
