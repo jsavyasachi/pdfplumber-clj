@@ -175,6 +175,18 @@
   ([source opts] (let [[doc o] (page/resolve-source source opts)]
                    (objects/vertical-edges doc o))))
 
+(defn annots
+  "Page annotations. See `pdfplumber.objects/annots`."
+  ([source] (annots source {}))
+  ([source opts] (let [[doc o] (page/resolve-source source opts)]
+                   (objects/annots doc o))))
+
+(defn hyperlinks
+  "URI link annotations. See `pdfplumber.objects/hyperlinks`."
+  ([source] (hyperlinks source {}))
+  ([source opts] (let [[doc o] (page/resolve-source source opts)]
+                   (objects/hyperlinks doc o))))
+
 (defn extract-table
   "Extract a single table. Accepts a document handle or a cropped page view. See
    `pdfplumber.table/extract-table`."

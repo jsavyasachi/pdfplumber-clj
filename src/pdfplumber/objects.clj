@@ -14,6 +14,9 @@
            [org.apache.pdfbox.pdmodel.graphics.image PDImage]
            [org.apache.pdfbox.pdmodel.graphics.color PDColor]
            [org.apache.pdfbox.pdmodel.graphics.state PDGraphicsState]
+           [org.apache.pdfbox.pdmodel.interactive.annotation PDAnnotation PDAnnotationLink
+            PDAnnotationMarkup]
+           [org.apache.pdfbox.pdmodel.interactive.action PDActionURI]
            [org.apache.pdfbox.util Matrix]
            [java.awt.geom Point2D Point2D$Float]
            [java.io ByteArrayOutputStream]
@@ -261,3 +264,49 @@
   "Vertical subset of `edges`."
   ([doc] (vertical-edges doc {}))
   ([doc opts] (filterv #(= :vertical (:orientation %)) (edges doc opts))))
+
+(defn- annotation-obj [page-height page-no doctop-offset ^PDAnnotation annotation]
+  (let [rect (.getRectangle annotation)
+        x0 (double (.getLowerLeftX rect))
+        x1 (double (.getUpperRightX rect))
+        top (- page-height (double (.getUpperRightY rect)))
+        bottom (- page-height (double (.getLowerLeftY rect)))
+        action (when (instance? PDAnnotationLink annotation)
+                 (.getAction ^PDAnnotationLink annotation))
+        uri (when (instance? PDActionURI action) (.getURI ^PDActionURI action))
+        title (when (instance? PDAnnotationMarkup annotation)
+                (.getTitlePopup ^PDAnnotationMarkup annotation))]
+    (cond-> {:type :annot :object-type :annot
+             :subtype (.getSubtype annotation)
+             :x0 x0 :top top :x1 x1 :bottom bottom
+             :y0 (- page-height bottom) :y1 (- page-height top)
+             :width (- x1 x0) :height (- bottom top)
+             :doctop (+ doctop-offset top)
+             :page-number page-no}
+      (.getContents annotation) (assoc :contents (.getContents annotation))
+      title (assoc :title title)
+      uri (assoc :uri uri))))
+
+(defn annots
+  "All page annotations with positional pdfplumber attributes."
+  ([doc] (annots doc {}))
+  ([^PDDocument doc {:keys [page bbox view-operations]}]
+   (let [pages (if page [(long page)] (range 1 (inc (.getNumberOfPages doc))))
+         all (into []
+                   (mapcat (fn [p]
+                             (let [pd-page (.getPage doc (dec (int p)))
+                                   height (page-height doc p)
+                                   offset (reduce + 0.0
+                                                  (map #(page-height doc %) (range 1 p)))]
+                               (map #(annotation-obj height p offset %)
+                                    (.getAnnotations pd-page)))))
+                   pages)]
+     (cond-> (if (and bbox (not view-operations))
+               (filterv #(g/intersects? bbox (obj-bbox %)) all)
+               all)
+       view-operations (page/apply-view view-operations)))))
+
+(defn hyperlinks
+  "URI link annotations only."
+  ([doc] (hyperlinks doc {}))
+  ([doc opts] (filterv :uri (annots doc opts))))

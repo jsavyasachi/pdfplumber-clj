@@ -7,6 +7,8 @@
            [org.apache.pdfbox.pdmodel.font PDType1Font Standard14Fonts$FontName]
            [org.apache.pdfbox.pdmodel.graphics.image LosslessFactory]
            [org.apache.pdfbox.pdmodel.encryption AccessPermission StandardProtectionPolicy]
+           [org.apache.pdfbox.pdmodel.interactive.annotation PDAnnotationLink PDAnnotationText]
+           [org.apache.pdfbox.pdmodel.interactive.action PDActionURI]
            [java.awt Color]
            [java.awt.image BufferedImage]
            [java.io ByteArrayOutputStream]))
@@ -290,6 +292,24 @@
                  (.setUpperRightX (float 600)) (.setUpperRightY (float 800)))
           page (PDPage. media)]
       (.setCropBox page crop)
+      (.addPage doc page))
+    (->bytes doc)))
+
+(defn annotations-pdf
+  "Page with one URI link annotation and one text annotation."
+  ^bytes []
+  (with-open [doc (PDDocument.)]
+    (let [page (PDPage. PDRectangle/LETTER)
+          link (PDAnnotationLink.)
+          action (doto (PDActionURI.) (.setURI "https://example.com"))
+          note (doto (PDAnnotationText.)
+                 (.setContents "review this")
+                 (.setTitlePopup "Editor"))]
+      (.setRectangle link (PDRectangle. (float 72) (float 650) (float 100) (float 20)))
+      (.setAction link action)
+      (.setRectangle note (PDRectangle. (float 100) (float 600) (float 20) (float 20)))
+      (.add (.getAnnotations page) link)
+      (.add (.getAnnotations page) note)
       (.addPage doc page))
     (->bytes doc)))
 

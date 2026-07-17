@@ -130,3 +130,24 @@
         (is (= 1 (count (curves-var d))))
         (is (seq (:pts (first (curves-var d)))))
         (is (seq (filter #(= :curve-edge (:object-type %)) (edges-var d))))))))
+
+(deftest annotations-and-hyperlinks
+  (pdf/with-pdf [d (fix/annotations-pdf)]
+    (let [annots-var (ns-resolve 'pdfplumber.core 'annots)
+          hyperlinks-var (ns-resolve 'pdfplumber.core 'hyperlinks)]
+      (is (every? some? [annots-var hyperlinks-var]))
+      (when (and annots-var hyperlinks-var)
+        (let [annots (annots-var d)
+              links (hyperlinks-var d)
+              link (first links)]
+          (is (= 2 (count annots)))
+          (is (= 1 (count links)))
+          (is (= "https://example.com" (:uri link)))
+          (is (= :annot (:object-type link)))
+          (is (= "Link" (:subtype link)))
+          (is (approx= 72 (:x0 link)))
+          (is (approx= 172 (:x1 link)))
+          (is (approx= 122 (:top link)))
+          (is (approx= 142 (:bottom link)))
+          (is (= "review this" (:contents (second annots))))
+          (is (= "Editor" (:title (second annots)))))))))
