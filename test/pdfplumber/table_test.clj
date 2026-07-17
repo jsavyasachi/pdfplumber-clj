@@ -87,3 +87,38 @@
   (pdf/with-pdf [d (fix/simple-text-pdf)]
     (is (= [] (pdf/extract-tables d {:page 1})))
     (is (nil? (pdf/extract-table d {:page 1})))))
+
+(deftest complete-settings-and-finder
+  (pdf/with-pdf [d (fix/partially-ruled-table-pdf)]
+    (testing "explicit lines are additive to a non-explicit strategy"
+      (let [t (pdf/extract-table d {:page 1
+                                    :vertical-strategy :lines
+                                    :horizontal-strategy :lines
+                                    :explicit-vertical-lines [70 300 400]
+                                    :snap-x-tolerance 1.0
+                                    :snap-y-tolerance 2.0
+                                    :join-x-tolerance 1.0
+                                    :join-y-tolerance 2.0
+                                    :intersection-x-tolerance 2.0
+                                    :intersection-y-tolerance 2.0
+                                    :edge-min-length-prefilter true
+                                    :text-keep-blank-chars false})]
+        (is (= 1 (:page-number t)))
+        (is (= 6 (count (:cells t)))))))
+  (pdf/with-pdf [d (fix/table-pdf)]
+    (let [find-tables-var (ns-resolve 'pdfplumber.core 'find-tables)
+          find-table-var (ns-resolve 'pdfplumber.core 'find-table)]
+      (is (every? some? [find-tables-var find-table-var]))
+      (when (and find-tables-var find-table-var)
+        (let [tables (find-tables-var d {:page 1})
+              table (find-table-var d {:page 1})]
+          (is (= 1 (count tables)))
+          (is (= (:bbox table) (:bbox (first tables))))
+          (is (= 2 (count (:columns table))))
+          (is (= 4 (count (:cells table))))
+          (is (fn? (:extract table)))
+          (is (= [["Date" "Amount"] ["2026-01-01" "$10.00"]]
+                 ((:extract table))))))))
+  (pdf/with-pdf [d (fix/right-aligned-text-table-pdf)]
+    (testing "text strategy considers right-edge alignments"
+      (is (= 1 (count (pdf/extract-tables d {:page 1 :strategy :text})))))))

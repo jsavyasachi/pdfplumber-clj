@@ -169,6 +169,18 @@
   ([source] (extract-tables source {}))
   ([source opts] (let [[doc o] (page/resolve-source source opts)] (table/extract-tables doc o))))
 
+(defn find-tables
+  "Find rich Table maps. See `pdfplumber.table/find-tables`."
+  ([source] (find-tables source {}))
+  ([source opts] (let [[doc o] (page/resolve-source source opts)]
+                   (table/find-tables doc o))))
+
+(defn find-table
+  "Find the first rich Table map. See `pdfplumber.table/find-table`."
+  ([source] (find-table source {}))
+  ([source opts] (let [[doc o] (page/resolve-source source opts)]
+                   (table/find-table doc o))))
+
 (defmacro with-pdf
   "Open `source`, bind the document handle to `binding`, evaluate `body`, and
    always close the document on exit (including on exception).

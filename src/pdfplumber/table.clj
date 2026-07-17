@@ -15,6 +15,7 @@
    :join-tolerance 3.0
    :edge-min-length 3.0
    :intersection-tolerance 3.0
+   :edge-min-length-prefilter false
    :min-words-vertical 3
    :min-words-horizontal 1
    :text-x-tolerance 3.0
@@ -77,10 +78,17 @@
        (mapv #(/ (reduce + %) (count %)))))
 
 (defn- text-vertical-edges [words {:keys [text-x-tolerance min-words-vertical]}]
-  (when-let [[_ top right bottom] (words-bbox words)]
-    (let [lefts (supported-positions (map :x0 words) text-x-tolerance
-                                     min-words-vertical)
-          positions (vec (distinct (sort (conj lefts right))))]
+  (when-let [[left top right bottom] (words-bbox words)]
+    (let [alignments [(map :x0 words)
+                      (map :x1 words)
+                      (map #(/ (+ (:x0 %) (:x1 %)) 2.0) words)]
+          families (mapv #(supported-positions % text-x-tolerance
+                                               min-words-vertical)
+                         alignments)
+          aligned (reduce (fn [best family]
+                            (if (> (count family) (count best)) family best))
+                          [] families)
+          positions (vec (distinct (sort (concat [left right] aligned))))]
       (for [x positions] {:x x :top top :bottom bottom}))))
 
 (defn- text-horizontal-edges [words {:keys [text-y-tolerance min-words-horizontal]}]
@@ -92,7 +100,7 @@
       (for [y (distinct (sort positions))] {:y y :x0 left :x1 right}))))
 
 (defn- page-bbox [^PDDocument doc opts]
-  (or (:bbox opts)
+  (or (:view-bbox opts) (:bbox opts)
       (let [page (.getPage doc (dec (int (or (:page opts) 1))))
             box (.getMediaBox page)]
         [0.0 0.0 (double (.getWidth box)) (double (.getHeight box))])))
@@ -125,14 +133,27 @@
        (map #(assoc % coord position) runs)))
    (group-by coord edges)))
 
-(defn- normalize-edges [{:keys [h v]} {:keys [snap-tolerance join-tolerance
-                                               edge-min-length]}]
-  (let [ys (snap-positions (map :y h) snap-tolerance)
-        xs (snap-positions (map :x v) snap-tolerance)
-        h (map #(assoc % :y (snap-to ys snap-tolerance (:y %))) h)
-        v (map #(assoc % :x (snap-to xs snap-tolerance (:x %))) v)
-        h (join-runs h :y :x0 :x1 join-tolerance)
-        v (join-runs v :x :top :bottom join-tolerance)]
+(defn- edge-length [orientation edge]
+  (if (= orientation :h)
+    (- (double (:x1 edge)) (:x0 edge))
+    (- (double (:bottom edge)) (:top edge))))
+
+(defn- normalize-edges [{:keys [h v]} opts]
+  (let [snap-x (double (or (:snap-x-tolerance opts) (:snap-tolerance opts)))
+        snap-y (double (or (:snap-y-tolerance opts) (:snap-tolerance opts)))
+        join-x (double (or (:join-x-tolerance opts) (:join-tolerance opts)))
+        join-y (double (or (:join-y-tolerance opts) (:join-tolerance opts)))
+        edge-min-length (:edge-min-length opts)
+        h (if (:edge-min-length-prefilter opts)
+            (filter #(>= (edge-length :h %) edge-min-length) h) h)
+        v (if (:edge-min-length-prefilter opts)
+            (filter #(>= (edge-length :v %) edge-min-length) v) v)
+        ys (snap-positions (map :y h) snap-y)
+        xs (snap-positions (map :x v) snap-x)
+        h (map #(assoc % :y (snap-to ys snap-y (:y %))) h)
+        v (map #(assoc % :x (snap-to xs snap-x (:x %))) v)
+        h (join-runs h :y :x0 :x1 join-x)
+        v (join-runs v :x :top :bottom join-y)]
     {:h (filterv #(>= (- (double (:x1 %)) (:x0 %)) edge-min-length) h)
      :v (filterv #(>= (- (double (:bottom %)) (:top %)) edge-min-length) v)}))
 
@@ -140,18 +161,22 @@
   (let [bbox (page-bbox doc opts)
         line-edges (source-edges objs false)
         strict-edges (source-edges objs true)
-        vertical (case (:vertical-strategy opts)
+        vertical-base (case (:vertical-strategy opts)
                    :lines (:v line-edges)
                    :lines-strict (:v strict-edges)
                    :text (text-vertical-edges words opts)
-                   :explicit (map #(explicit-v-edge % bbox)
-                                  (:explicit-vertical-lines opts)))
-        horizontal (case (:horizontal-strategy opts)
+                   :explicit [])
+        horizontal-base (case (:horizontal-strategy opts)
                      :lines (:h line-edges)
                      :lines-strict (:h strict-edges)
                      :text (text-horizontal-edges words opts)
-                     :explicit (map #(explicit-h-edge % bbox)
-                                    (:explicit-horizontal-lines opts)))
+                     :explicit [])
+        vertical (concat vertical-base
+                         (map #(explicit-v-edge % bbox)
+                              (:explicit-vertical-lines opts)))
+        horizontal (concat horizontal-base
+                           (map #(explicit-h-edge % bbox)
+                                (:explicit-horizontal-lines opts)))
         vertical (if (and (= :text (:vertical-strategy opts)) (seq horizontal))
                    (let [top (reduce min (map :y horizontal))
                          bottom (reduce max (map :y horizontal))]
@@ -164,22 +189,22 @@
                      horizontal)]
     (normalize-edges {:h horizontal :v vertical} opts)))
 
-(defn- intersection? [{:keys [h v]} x y tol]
-  (and (some #(and (<= (Math/abs (- (double (:x %)) x)) tol)
-                    (<= (- (:top %) tol) y (+ (:bottom %) tol))) v)
-       (some #(and (<= (Math/abs (- (double (:y %)) y)) tol)
-                    (<= (- (:x0 %) tol) x (+ (:x1 %) tol))) h)))
+(defn- intersection? [{:keys [h v]} x y x-tol y-tol]
+  (and (some #(and (<= (Math/abs (- (double (:x %)) x)) x-tol)
+                    (<= (- (:top %) y-tol) y (+ (:bottom %) y-tol))) v)
+       (some #(and (<= (Math/abs (- (double (:y %)) y)) y-tol)
+                    (<= (- (:x0 %) x-tol) x (+ (:x1 %) x-tol))) h)))
 
-(defn- grid-cells [edges tolerance]
+(defn- grid-cells [edges x-tolerance y-tolerance]
   (let [xs (sort (distinct (map :x (:v edges))))
         ys (sort (distinct (map :y (:h edges))))]
     (vec
      (for [[top bottom] (partition 2 1 ys)
            [x0 x1] (partition 2 1 xs)
-           :when (and (intersection? edges x0 top tolerance)
-                      (intersection? edges x1 top tolerance)
-                      (intersection? edges x0 bottom tolerance)
-                      (intersection? edges x1 bottom tolerance))]
+           :when (and (intersection? edges x0 top x-tolerance y-tolerance)
+                      (intersection? edges x1 top x-tolerance y-tolerance)
+                      (intersection? edges x0 bottom x-tolerance y-tolerance)
+                      (intersection? edges x1 bottom x-tolerance y-tolerance))]
        [x0 top x1 bottom]))))
 
 (defn- adjacent-cells? [[ax0 at ax1 ab] [bx0 bt bx1 bb] tol]
@@ -235,11 +260,21 @@
 
 (defn- detected-tables [doc opts]
   (let [opts (merge defaults opts)
-        words (text/words doc opts)
+        text-opts (into {}
+                        (keep (fn [[k v]]
+                                (let [n (name k)]
+                                  (when (str/starts-with? n "text-")
+                                    [(keyword (subs n 5)) v]))))
+                        opts)
+        words (text/words doc (merge opts text-opts))
         objs (objects/objects doc opts)
         edges (strategy-edges doc words objs opts)
-        tolerance (:intersection-tolerance opts)
-        cells (grid-cells edges tolerance)]
+        x-tolerance (double (or (:intersection-x-tolerance opts)
+                                (:intersection-tolerance opts)))
+        y-tolerance (double (or (:intersection-y-tolerance opts)
+                                (:intersection-tolerance opts)))
+        tolerance (max x-tolerance y-tolerance)
+        cells (grid-cells edges x-tolerance y-tolerance)]
     (->> (cell-components cells tolerance)
          (map (fn [component]
                 (let [cells (vec (sort-by (juxt second first) component))
@@ -251,7 +286,9 @@
                   {:page-number (or (:page opts) (:page-number (first words)) 1)
                    :strategy (table-strategy opts)
                    :bbox bbox
-                   :rows (assemble-rows cells words (max 0.001 (:snap-tolerance opts)))
+                   :rows (assemble-rows cells words
+                                        (max 0.001 (double (or (:snap-y-tolerance opts)
+                                                               (:snap-tolerance opts)))))
                    :cells cells
                    :debug (cond-> {:horizontal-lines (count region-h)
                                    :vertical-lines (count region-v)
@@ -302,3 +339,28 @@
   ([doc] (extract-table doc {}))
   ([doc opts]
    (first (extract-tables doc opts))))
+
+(defn- table-columns [table]
+  (let [[_ top _ bottom] (:bbox table)]
+    (->> (:cells table)
+         (group-by (fn [[x0 _ x1 _]] [x0 x1]))
+         (sort-by (comp first key))
+         (mapv (fn [[[x0 x1] cells]]
+                 {:bbox [x0 top x1 bottom] :cells (vec cells)})))))
+
+(defn- as-table [table]
+  (let [extracted (mapv (fn [row] (mapv :text row)) (:rows table))]
+    (assoc table
+           :columns (table-columns table)
+           :extract (fn [] extracted))))
+
+(defn find-tables
+  "Find Table maps with `:rows`, `:columns`, `:cells`, `:bbox`, and a zero-arg
+   `:extract` function."
+  ([doc] (find-tables doc {}))
+  ([doc opts] (mapv as-table (extract-tables doc opts))))
+
+(defn find-table
+  "First Table map from `find-tables`, or nil."
+  ([doc] (find-table doc {}))
+  ([doc opts] (first (find-tables doc opts))))

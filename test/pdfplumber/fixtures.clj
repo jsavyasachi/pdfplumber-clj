@@ -142,6 +142,26 @@
             (.endText cs)))))
     (->bytes doc)))
 
+(defn right-aligned-text-table-pdf
+  "Two-column table whose words share right edges rather than left edges."
+  ^bytes []
+  (with-open [doc (PDDocument.)]
+    (let [page (PDPage. PDRectangle/LETTER)
+          font (helvetica)]
+      (.addPage doc page)
+      (with-open [cs (PDPageContentStream. doc page)]
+        (doseq [[left right y] [["A" "1" 700]
+                                ["Long" "22" 670]
+                                ["Mid" "333" 640]]
+                [s edge] [[left 200.0] [right 400.0]]]
+          (let [width (* (/ (.getStringWidth font ^String s) 1000.0) 10.0)]
+            (.beginText cs)
+            (.setFont cs font (float 10))
+            (.newLineAtOffset cs (float (- edge width)) (float y))
+            (.showText cs ^String s)
+            (.endText cs))))
+      (->bytes doc))))
+
 (defn two-tables-pdf
   "Single page with two spatially separate ruled 2x2 tables. Returns byte[]."
   ^bytes []
