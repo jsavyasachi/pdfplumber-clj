@@ -2,6 +2,16 @@
 
 All notable changes to this project are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.4.0] - 2026-07-17
+### Added
+- Visual debugging with `to-image`, backed by PDFBox `PDFRenderer`, plus `draw-line`, `draw-vline`, `draw-hline`, `draw-rect`, `draw-rects`, `draw-circle`, `draw-circles`, `outline-words`, `outline-chars`, `debug-tablefinder`, `reset`, `copy`, `save`, and `show` in `pdfplumber.image`.
+- Tagged-PDF logical structure extraction through `structure-tree` and 1-based `page-structure-tree`; untagged PDFs return `[]`.
+- AcroForm field names, values, and types on Widget annotation records from `annots`.
+- `pdfplumber.cli` command-line PDF object dumps in CSV or JSON, with page/type selection, numeric precision, and JSON indentation options.
+
+### Changed
+- `org.clojure/data.json` is now a runtime dependency.
+
 ## [0.3.0] - 2026-07-16
 ### Added
 - Feature-parity pass with Python pdfplumber over PDFBox. All additions are backward compatible.

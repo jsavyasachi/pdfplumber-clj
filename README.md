@@ -16,7 +16,7 @@ built on [Apache PDFBox](https://pdfbox.apache.org).
 
 ## Status
 
-Early release (`0.2.0`). The extraction API (text, words, chars, objects,
+Early release (`0.4.0`). The extraction API (text, words, chars, objects,
 tables, crop) is in place and validated against the Python pdfplumber corpus;
 it may still evolve before `1.0`.
 
@@ -25,13 +25,13 @@ it may still evolve before `1.0`.
 deps.edn
 
 ```clojure
-net.clojars.savya/pdfplumber-clj {:mvn/version "0.3.0"}
+net.clojars.savya/pdfplumber-clj {:mvn/version "0.4.0"}
 ```
 
 Leiningen
 
 ```clojure
-[net.clojars.savya/pdfplumber-clj "0.3.0"]
+[net.clojars.savya/pdfplumber-clj "0.4.0"]
 ```
 
 Requires JDK 17+.
@@ -76,6 +76,60 @@ Configure each axis independently with `:vertical-strategy` and
 Use `:explicit-horizontal-lines` with `:horizontal-strategy :explicit`.
 Explicit lines may be coordinates or maps with bounded line coordinates.
 
+## Visual debugging
+
+`pdfplumber.core/to-image` renders a page through PDFBox and returns a
+`PageImage`; `pdfplumber.core/page-image?` identifies one. Overlay, reset/copy,
+save, and display verbs live in `pdfplumber.image`.
+
+```clojure
+(require '[pdfplumber.image :as image])
+
+(pdf/with-pdf [doc "invoice.pdf"]
+  (-> (pdf/to-image doc {:page 1 :resolution 144})
+      (image/outline-words)
+      (image/draw-rect [72 72 240 160])
+      (image/save "debug.png")))
+
+(pdf/with-pdf [doc "invoice.pdf"]
+  (-> (pdf/to-image doc {:page 1})
+      (image/debug-tablefinder {:vertical-strategy :lines})
+      (image/save "tables.png")))
+```
+
+Other overlays: `draw-line`, `draw-vline`, `draw-hline`, `draw-rects`,
+`draw-circle`, `draw-circles`, and `outline-chars`. `reset`, `copy`, `save`, and
+`show` manage the rendered image.
+
+## Structure tree
+
+`structure-tree` returns a tagged PDF's nested logical structure.
+`page-structure-tree` restricts it to a 1-based page. Untagged PDFs return `[]`.
+
+```clojure
+(pdf/structure-tree doc)
+(pdf/page-structure-tree doc 1)
+```
+
+## Form fields
+
+Widget entries returned by `annots` include `:field-name`, `:field-value`, and
+`:field-type`. Other annotations are unchanged.
+
+```clojure
+(pdf/annots doc {:page 1})
+```
+
+## CLI
+
+Dump selected PDF objects as CSV or JSON:
+
+```shell
+clojure -M -m pdfplumber.cli statement.pdf \
+  --format json --pages 1,2 --types char,line,rect,curve,image,annot \
+  --precision 2 --indent 2
+```
+
 ## Images
 
 `images` returns drawn image objects. Images also appear as `:image` entries in
@@ -98,10 +152,13 @@ coordinates are converted internally.
 
 In: text/word/char and image extraction, page geometry, crop/filter,
 multi-table extraction from ruling lines, text alignment, or explicit lines,
-and deterministic plain-data output.
+visual debugging, tagged-PDF structure trees, widget form-field values,
+command-line CSV/JSON export, and deterministic plain-data output.
 
-Out (v1): PDF generation, OCR, scanned/image PDFs, AcroForm extraction, layout ML.
-Table `:text` strategy is heuristic and intended for digitally generated PDFs.
+Not in scope (same as Python pdfplumber): PDF generation, OCR, scanned/image
+PDFs, and layout ML. Widget annotations surface AcroForm field values, but there
+is no dedicated form API. Table `:text` strategy is heuristic and intended for
+digitally generated PDFs.
 
 ## License
 
