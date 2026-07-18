@@ -2,6 +2,11 @@
 
 All notable changes to this project are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.5.0] - 2026-07-17
+### Added
+- Reducible, single-pass, page-at-a-time object streams through `reducible-chars`, `reducible-words`, `reducible-objects`, `reducible-lines`, `reducible-rects`, `reducible-curves`, `reducible-images`, `reducible-annots`, and generic `page-reducible`. These implement `IReduceInit`, so `transduce`, `into`, and `eduction` short-circuit (for example, with `(take n)`) without extracting later pages.
+- `table->maps` produces header-keyed row maps from an extracted table or raw rows, providing a zero-dependency seam for `tech.ml.dataset` or `tablecloth` `->dataset`.
+
 ## [0.4.0] - 2026-07-17
 ### Added
 - Visual debugging with `to-image`, backed by PDFBox `PDFRenderer`, plus `draw-line`, `draw-vline`, `draw-hline`, `draw-rect`, `draw-rects`, `draw-circle`, `draw-circles`, `outline-words`, `outline-chars`, `debug-tablefinder`, `reset`, `copy`, `save`, and `show` in `pdfplumber.image`.

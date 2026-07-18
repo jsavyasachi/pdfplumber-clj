@@ -16,7 +16,7 @@ built on [Apache PDFBox](https://pdfbox.apache.org).
 
 ## Status
 
-Early release (`0.4.0`). The extraction API (text, words, chars, objects,
+Early release (`0.5.0`). The extraction API (text, words, chars, objects,
 tables, crop) is in place and validated against the Python pdfplumber corpus;
 it may still evolve before `1.0`.
 
@@ -25,13 +25,13 @@ it may still evolve before `1.0`.
 deps.edn
 
 ```clojure
-net.clojars.savya/pdfplumber-clj {:mvn/version "0.4.0"}
+net.clojars.savya/pdfplumber-clj {:mvn/version "0.5.0"}
 ```
 
 Leiningen
 
 ```clojure
-[net.clojars.savya/pdfplumber-clj "0.4.0"]
+[net.clojars.savya/pdfplumber-clj "0.5.0"]
 ```
 
 Requires JDK 17+.
@@ -49,6 +49,20 @@ Requires JDK 17+.
 
 (pdf/with-pdf [doc "invoice.pdf"]
   (pdf/extract-table doc {:page 1 :strategy :lines}))
+```
+
+## Streaming extraction
+
+The `reducible-*` functions on `pdfplumber.core` return `IReduceInit` streams
+that extract one page at a time. Transducers terminate early without extracting
+later pages. They are re-exported from `pdfplumber.reducible`.
+
+```clojure
+(into []
+      (comp (filter #(> (:size %) 10)) (take 100))
+      (pdf/reducible-chars doc))
+
+(transduce (take 20) conj [] (pdf/reducible-words doc))
 ```
 
 ## Tables
@@ -75,6 +89,20 @@ Configure each axis independently with `:vertical-strategy` and
 
 Use `:explicit-horizontal-lines` with `:horizontal-strategy :explicit`.
 Explicit lines may be coordinates or maps with bounded line coordinates.
+
+## Tables as data
+
+`table->maps` converts an extracted table or raw rows to a sequence of
+header-keyed maps.
+
+```clojure
+(-> (pdf/extract-table doc {:page 1})
+    pdf/table->maps)
+```
+
+The result feeds `tech.v3.dataset/->dataset` directly with no added dependency.
+Use `:keywordize? true` for keyword keys. Set `:header` to `:first` (the
+default), an explicit key vector, or `false` for integer keys.
 
 ## Visual debugging
 
