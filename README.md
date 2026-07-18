@@ -17,23 +17,25 @@ built on [Apache PDFBox](https://pdfbox.apache.org).
 
 ## Status
 
-Actively developed (`0.5.0`). Covers the full Python pdfplumber extraction
+Actively developed (`0.6.0`). Covers the full Python pdfplumber extraction
 surface (text, words, chars, objects, tables, crop), validated against the
 pdfplumber corpus, plus streaming extraction, visual debugging, tagged-structure
-access, and a CSV/JSON CLI on top. Pre-`1.0`, so the data shapes may still refine.
+access, document-metadata access for forms, outline, attachments, permissions,
+and signatures, and a CSV/JSON CLI on top. Pre-`1.0`, so the data shapes may
+still refine.
 
 ## Install
 
 deps.edn
 
 ```clojure
-net.clojars.savya/pdfplumber-clj {:mvn/version "0.5.0"}
+net.clojars.savya/pdfplumber-clj {:mvn/version "0.6.0"}
 ```
 
 Leiningen
 
 ```clojure
-[net.clojars.savya/pdfplumber-clj "0.5.0"]
+[net.clojars.savya/pdfplumber-clj "0.6.0"]
 ```
 
 Requires JDK 17+.
@@ -143,11 +145,66 @@ Other overlays: `draw-line`, `draw-vline`, `draw-hline`, `draw-rects`,
 
 ## Form fields
 
-Widget entries returned by `annots` include `:field-name`, `:field-value`, and
-`:field-type`. Other annotations are unchanged.
+`form-fields` returns terminal AcroForm field maps with values, constraints,
+options, and first-widget geometry. `field-values` returns the name-to-value
+map.
 
 ```clojure
-(pdf/annots doc {:page 1})
+(pdf/form-fields doc)
+;; => [{:name "customer.email", :type :text, :value "ada@example.com",
+;;      :required? true, :read-only? false, :page-number 1,
+;;      :bbox [72.0 120.0 288.0 140.0]}]
+
+(pdf/field-values doc)
+;; => {"customer.email" "ada@example.com"}
+```
+
+Widget annotations from `annots` also carry `:field-name`, `:field-value`, and
+`:field-type`.
+
+## Document outline
+
+`outline` returns nested bookmarks with resolved 1-based page numbers.
+
+```clojure
+(pdf/outline doc)
+;; => [{:title "Introduction", :page-number 1, :children []}]
+```
+
+## Attachments
+
+`attachments` returns embedded-file metadata. Set `:include-data? true` to add
+decoded `:bytes`.
+
+```clojure
+(pdf/attachments doc)
+;; => [{:name "data.csv", :size 128, :mime-type "text/csv"}]
+
+(pdf/attachments doc {:include-data? true})
+```
+
+## Permissions
+
+`permissions` reports encryption state and effective access flags.
+
+```clojure
+(pdf/permissions doc)
+;; => {:encrypted? true, :can-print? true, :can-modify? false, ...}
+```
+
+## Signatures
+
+`signatures` surfaces signature metadata plus a `:covers-whole-document?`
+integrity signal. `signed?` reports signature-dictionary presence. These APIs do
+not validate cryptographic signatures, certificates, or trust.
+
+```clojure
+(pdf/signatures doc)
+;; => [{:name "Ada Lovelace", :byte-range [0 1024 2048 512],
+;;      :covers-whole-document? true}]
+
+(pdf/signed? doc)
+;; => true
 ```
 
 ## CLI
@@ -182,12 +239,13 @@ coordinates are converted internally.
 
 In: text/word/char and image extraction, page geometry, crop/filter,
 multi-table extraction from ruling lines, text alignment, or explicit lines,
-visual debugging, tagged-PDF structure trees, widget form-field values,
-command-line CSV/JSON export, and deterministic plain-data output.
+visual debugging, tagged-PDF structure trees, first-class form fields,
+outline/bookmarks, attachments, permissions, signature metadata, command-line
+CSV/JSON export, and deterministic plain-data output.
 
 Not in scope (same as Python pdfplumber): PDF generation, OCR, scanned/image
-PDFs, and layout ML. Widget annotations surface AcroForm field values, but there
-is no dedicated form API. Table `:text` strategy is heuristic and intended for
+PDFs, and layout ML. Signature APIs do not perform cryptographic, certificate,
+or trust validation. Table `:text` strategy is heuristic and intended for
 digitally generated PDFs.
 
 ## License

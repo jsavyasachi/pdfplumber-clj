@@ -2,6 +2,14 @@
 
 All notable changes to this project are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.6.0] - 2026-07-17
+### Added
+- First-class AcroForm access through `form-fields`, with field name, partial name, type, value, default, options, required/read-only flags, text multiline/max length, and first-widget page plus top-left bbox, and `field-values` for a name-to-value map.
+- `outline` returns the nested document outline and bookmarks with resolved 1-based page numbers.
+- `attachments` returns embedded files with name, description, size, MIME type, and dates, plus decoded `:bytes` with `:include-data? true`.
+- `permissions` returns encryption state and access-permission flags for printing, modification, extraction, assembly, form filling, and annotation, plus key length and security handler.
+- `signatures` and `signed?` expose digital-signature metadata plus a `:covers-whole-document?` integrity signal. They do not perform cryptographic, certificate, or trust validation.
+
 ## [0.5.0] - 2026-07-17
 ### Added
 - Reducible, single-pass, page-at-a-time object streams through `reducible-chars`, `reducible-words`, `reducible-objects`, `reducible-lines`, `reducible-rects`, `reducible-curves`, `reducible-images`, `reducible-annots`, and generic `page-reducible`. These implement `IReduceInit`, so `transduce`, `into`, and `eduction` short-circuit (for example, with `(take n)`) without extracting later pages.
