@@ -5,6 +5,7 @@
   (:require [pdfplumber.document :as document]
             [pdfplumber.text :as text]
             [pdfplumber.objects :as objects]
+            [pdfplumber.reducible :as reducible]
             [pdfplumber.table :as table]
             [pdfplumber.image :as image]
             [pdfplumber.structure :as structure]
@@ -196,6 +197,60 @@
   ([source opts] (let [[doc o] (page/resolve-source source opts)]
                    (objects/hyperlinks doc o))))
 
+(defn reducible-chars
+  "Single-pass reducible character stream. See
+   `pdfplumber.reducible/reducible-chars`."
+  ([source] (reducible/reducible-chars source))
+  ([source opts] (reducible/reducible-chars source opts)))
+
+(defn reducible-words
+  "Page-at-a-time reducible word stream. See
+   `pdfplumber.reducible/reducible-words`."
+  ([source] (reducible/reducible-words source))
+  ([source opts] (reducible/reducible-words source opts)))
+
+(defn reducible-objects
+  "Page-at-a-time reducible object stream. See
+   `pdfplumber.reducible/reducible-objects`."
+  ([source] (reducible/reducible-objects source))
+  ([source opts] (reducible/reducible-objects source opts)))
+
+(defn reducible-lines
+  "Page-at-a-time reducible painted-line stream. See
+   `pdfplumber.reducible/reducible-lines`."
+  ([source] (reducible/reducible-lines source))
+  ([source opts] (reducible/reducible-lines source opts)))
+
+(defn reducible-rects
+  "Page-at-a-time reducible painted-rectangle stream. See
+   `pdfplumber.reducible/reducible-rects`."
+  ([source] (reducible/reducible-rects source))
+  ([source opts] (reducible/reducible-rects source opts)))
+
+(defn reducible-curves
+  "Page-at-a-time reducible painted-curve stream. See
+   `pdfplumber.reducible/reducible-curves`."
+  ([source] (reducible/reducible-curves source))
+  ([source opts] (reducible/reducible-curves source opts)))
+
+(defn reducible-images
+  "Page-at-a-time reducible drawn-image stream. See
+   `pdfplumber.reducible/reducible-images`."
+  ([source] (reducible/reducible-images source))
+  ([source opts] (reducible/reducible-images source opts)))
+
+(defn reducible-annots
+  "Page-at-a-time reducible annotation stream. See
+   `pdfplumber.reducible/reducible-annots`."
+  ([source] (reducible/reducible-annots source))
+  ([source opts] (reducible/reducible-annots source opts)))
+
+(defn page-reducible
+  "Reducible page stream from an extractor function. See
+   `pdfplumber.reducible/page-reducible`."
+  ([source extractor] (reducible/page-reducible source extractor))
+  ([source extractor opts] (reducible/page-reducible source extractor opts)))
+
 (defn extract-table
   "Extract a single table. Accepts a document handle or a cropped page view. See
    `pdfplumber.table/extract-table`."
@@ -207,6 +262,12 @@
    See `pdfplumber.table/extract-tables`."
   ([source] (extract-tables source {}))
   ([source opts] (let [[doc o] (page/resolve-source source opts)] (table/extract-tables doc o))))
+
+(defn table->maps
+  "Convert an extracted table or raw rows to header-keyed maps. See
+   `pdfplumber.table/table->maps`."
+  ([table-data] (table/table->maps table-data))
+  ([table-data opts] (table/table->maps table-data opts)))
 
 (defn find-tables
   "Find rich Table maps. See `pdfplumber.table/find-tables`."
