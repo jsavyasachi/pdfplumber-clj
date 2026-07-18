@@ -4,11 +4,10 @@
 [![cljdoc](https://cljdoc.org/badge/net.clojars.savya/pdfplumber-clj)](https://cljdoc.org/d/net.clojars.savya/pdfplumber-clj/CURRENT)
 [![test](https://github.com/jsavyasachi/pdfplumber-clj/actions/workflows/test.yml/badge.svg)](https://github.com/jsavyasachi/pdfplumber-clj/actions/workflows/test.yml)
 
-PDF extraction and inspection for Clojure. Pull text, words, characters,
-geometric objects, and tables out of digitally generated PDFs as EDN/JSON-friendly
-maps and vectors, with streaming extraction, visual debugging, and a CSV/JSON CLI
-on top: the Clojure counterpart to Python's [`pdfplumber`](https://github.com/jsvine/pdfplumber),
-built on [Apache PDFBox](https://pdfbox.apache.org).
+PDF extraction and inspection for Clojure, built on [Apache PDFBox](https://pdfbox.apache.org).
+The Clojure counterpart to Python's [`pdfplumber`](https://github.com/jsvine/pdfplumber):
+pull text, tables, and geometry out of digitally generated PDFs as plain,
+EDN/JSON-friendly data.
 
 ## Stack
 
@@ -17,12 +16,16 @@ built on [Apache PDFBox](https://pdfbox.apache.org).
 
 ## Status
 
-Actively developed (`0.6.0`). Covers the full Python pdfplumber extraction
-surface (text, words, chars, objects, tables, crop), validated against the
-pdfplumber corpus, plus streaming extraction, visual debugging, tagged-structure
-access, document-metadata access for forms, outline, attachments, permissions,
-and signatures, and a CSV/JSON CLI on top. Pre-`1.0`, so the data shapes may
-still refine.
+Actively developed (`0.6.0`). Pre-`1.0`, so data shapes may still refine.
+
+Covers the full Python pdfplumber extraction surface (text, words, chars,
+objects, tables, crop), validated against the pdfplumber corpus, plus:
+
+- **Streaming** extraction: reducible/transducer, page-at-a-time
+- **Visual debugging**: page render + overlays
+- **Tagged structure** trees
+- **Document metadata**: forms, outline, attachments, permissions, signatures
+- **CLI**: CSV/JSON object dump
 
 ## Install
 
