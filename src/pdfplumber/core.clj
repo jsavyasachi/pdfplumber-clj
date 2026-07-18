@@ -9,6 +9,11 @@
             [pdfplumber.table :as table]
             [pdfplumber.image :as image]
             [pdfplumber.structure :as structure]
+            [pdfplumber.form :as form]
+            [pdfplumber.outline :as outline]
+            [pdfplumber.attachments :as attachments]
+            [pdfplumber.permissions :as permissions]
+            [pdfplumber.signature :as signature]
             [pdfplumber.page :as page])
   (:import [org.apache.pdfbox.pdmodel PDDocument]))
 
@@ -34,6 +39,45 @@
   "Page map for 1-based page number `n`. See `pdfplumber.document/page`."
   [doc n]
   (document/page doc n))
+
+(defn form-fields
+  "Vector of terminal AcroForm fields. See `pdfplumber.form/form-fields`."
+  [doc]
+  (form/form-fields doc))
+
+(defn field-values
+  "Map of terminal field names to values. See `pdfplumber.form/field-values`."
+  [doc]
+  (form/field-values doc))
+
+(defn outline
+  "Nested document outline. See `pdfplumber.outline/outline`."
+  [doc]
+  (outline/outline doc))
+
+(defn attachments
+  "Document attachments and optional decoded data. See
+   `pdfplumber.attachments/attachments`."
+  ([doc] (attachments/attachments doc))
+  ([doc opts] (attachments/attachments doc opts)))
+
+(defn permissions
+  "Encryption and access-permission flags. See
+   `pdfplumber.permissions/permissions`."
+  [doc]
+  (permissions/permissions doc))
+
+(defn signatures
+  "Digital-signature metadata and document-coverage signals. See
+   `pdfplumber.signature/signatures`."
+  [doc]
+  (signature/signatures doc))
+
+(defn signed?
+  "True when the document contains a signature dictionary. See
+   `pdfplumber.signature/signed?`."
+  [doc]
+  (signature/signed? doc))
 
 (defn crop-page
   "A cropped page view (restricts extraction to a bbox). See
