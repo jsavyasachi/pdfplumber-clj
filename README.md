@@ -132,9 +132,11 @@ save, and display verbs live in `pdfplumber.image`.
       (image/save "tables.png")))
 ```
 
-Other overlays: `draw-line`, `draw-vline`, `draw-hline`, `draw-rects`,
-`draw-circle`, `draw-circles`, and `outline-chars`. `reset`, `copy`, `save`, and
-`show` manage the rendered image.
+More verbs in `pdfplumber.image`:
+
+- Draw: `draw-line`, `draw-vline`, `draw-hline`, `draw-rect`, `draw-rects`, `draw-circle`, `draw-circles`
+- Outline: `outline-words`, `outline-chars`
+- Manage: `reset`, `copy`, `save`, `show`
 
 ## Structure tree
 
@@ -222,10 +224,14 @@ clojure -M -m pdfplumber.cli statement.pdf \
 
 ## Images
 
-`images` returns drawn image objects. Images also appear as `:image` entries in
-`objects`. Each image includes its bbox, pixel `:width` and `:height`,
-`:colorspace`, `:bits`, `:mask?`, and `:smask?`. Decoded PNG bytes are omitted
-by default.
+`images` returns drawn image objects; they also appear as `:image` entries in
+`objects`. Each carries:
+
+- `:bbox`, plus pixel `:width` and `:height`
+- `:colorspace` and `:bits`
+- `:mask?` and `:smask?`
+
+Decoded PNG bytes are omitted by default.
 
 ```clojure
 (pdf/images doc {:page 1})
@@ -240,16 +246,23 @@ coordinates are converted internally.
 
 ## Scope
 
-In: text/word/char and image extraction, page geometry, crop/filter,
-multi-table extraction from ruling lines, text alignment, or explicit lines,
-visual debugging, tagged-PDF structure trees, first-class form fields,
-outline/bookmarks, attachments, permissions, signature metadata, command-line
-CSV/JSON export, and deterministic plain-data output.
+In:
+
+- Text, word, char, and image extraction
+- Page geometry, crop, and filter
+- Multi-table extraction (ruling lines, text alignment, or explicit lines)
+- Visual debugging and tagged-PDF structure trees
+- Form fields, outline/bookmarks, attachments, permissions, and signature metadata
+- Command-line CSV/JSON export
+- Deterministic plain-data output
 
 Not in scope (same as Python pdfplumber): PDF generation, OCR, scanned/image
-PDFs, and layout ML. Signature APIs do not perform cryptographic, certificate,
-or trust validation. Table `:text` strategy is heuristic and intended for
-digitally generated PDFs.
+PDFs, and layout ML.
+
+Two caveats:
+
+- Signature APIs do not perform cryptographic, certificate, or trust validation.
+- The table `:text` strategy is heuristic, for digitally generated PDFs.
 
 ## License
 
