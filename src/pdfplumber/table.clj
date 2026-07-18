@@ -340,6 +340,84 @@
   ([doc opts]
    (first (extract-tables doc opts))))
 
+(defn- cell->value [cell]
+  (if (and (map? cell) (contains? cell :text)) (:text cell) cell))
+
+(defn- blank-header? [header]
+  (or (nil? header) (and (string? header) (str/blank? header))))
+
+(defn- keyword-header [header]
+  (when-let [munged (not-empty
+                     (-> (str header)
+                         str/trim
+                         str/lower-case
+                         (str/replace #"[^a-z0-9]+" "-")
+                         (str/replace #"(^-+|-+$)" "")))]
+    (keyword munged)))
+
+(defn- header-key [header position keywordize? explicit?]
+  (cond
+    (blank-header? header) position
+    (and keywordize? (keyword? header)) header
+    (and explicit? (not (string? header))) header
+    keywordize? (or (keyword-header header) position)
+    explicit? header
+    :else (str header)))
+
+(defn- suffix-key [header occurrence]
+  (cond
+    (keyword? header) (keyword (namespace header)
+                               (str (name header) "-" occurrence))
+    (string? header) (str header "-" occurrence)
+    :else (str header "-" occurrence)))
+
+(defn- unique-header-keys [headers keywordize? explicit?]
+  (:keys
+   (reduce-kv
+    (fn [{:keys [used] :as state} position header]
+      (let [base (header-key header position keywordize? explicit?)
+            unique (loop [occurrence 1
+                          candidate base]
+                     (if (contains? used candidate)
+                       (let [next-occurrence (inc occurrence)]
+                         (recur next-occurrence
+                                (suffix-key base next-occurrence)))
+                       candidate))]
+        (-> state
+            (update :keys conj unique)
+            (update :used conj unique))))
+    {:keys [] :used #{}}
+    (vec headers))))
+
+(defn- row-map [headers row]
+  (zipmap headers (take (count headers) (concat row (repeat nil)))))
+
+(defn table->maps
+  "Convert an extracted table map or raw rows into header-keyed row maps.
+   `:header` is `:first`, an explicit key vector, or false for integer keys;
+   `:keywordize?` munges header strings to keywords. Ragged rows are padded or
+   truncated. Dataframe input needs no adapter:
+   `(tech.v3.dataset/->dataset (table->maps table))`."
+  ([table] (table->maps table {}))
+  ([table opts]
+   (let [rows (if (map? table) (:rows table) table)
+         rows (mapv #(mapv cell->value %) (or rows []))
+         header-option (get opts :header :first)
+         keywordize? (boolean (:keywordize? opts))]
+     (if (empty? rows)
+       []
+       (let [[headers data-rows explicit?]
+             (cond
+               (= :first header-option) [(first rows) (subvec rows 1) false]
+               (vector? header-option) [header-option rows true]
+               (false? header-option) [(range (apply max 0 (map count rows)))
+                                       rows true]
+               :else (throw (ex-info "Invalid table header option"
+                                     {:pdfplumber/error :invalid-header
+                                      :header header-option})))
+             headers (unique-header-keys headers keywordize? explicit?)]
+         (mapv #(row-map headers %) data-rows))))))
+
 (defn- table-columns [table]
   (let [[_ top _ bottom] (:bbox table)]
     (->> (:cells table)
