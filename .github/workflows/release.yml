@@ -39,6 +39,16 @@ jobs:
             exit 1
           fi
 
+      - name: Verify README install coordinate matches version
+        if: github.ref_type == 'tag'
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          LIB=$(grep -oE "net\.clojars\.[^ ')]+" build.clj | head -1)
+          if ! grep -qF "$LIB {:mvn/version \"$TAG\"}" README.md; then
+            echo "::error::README.md is missing install coordinate: $LIB {:mvn/version \"$TAG\"}"
+            exit 1
+          fi
+
       - name: Test
         run: clojure -M:test
 
