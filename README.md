@@ -9,6 +9,10 @@ The Clojure counterpart to Python's [`pdfplumber`](https://github.com/jsvine/pdf
 pull text, tables, and geometry out of digitally generated PDFs as plain,
 EDN/JSON-friendly data.
 
+**[Try it live](https://savyasachi.dev/tools/pdf-tables)** - a hosted table extractor over this
+library: upload a PDF to see its detected table regions drawn on each page, tune the detection
+strategy, and download the rows as CSV or JSON. Files are processed in memory and never stored.
+
 ## Stack
 
 <a href="https://clojure.org"><img src="https://img.shields.io/badge/Clojure-5881D8?style=flat&logo=clojure&logoColor=white" alt="Clojure" /></a>
