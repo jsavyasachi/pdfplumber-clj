@@ -16,6 +16,18 @@
     (with-open [o (java.io.FileOutputStream. f)] (.write o bs))
     f))
 
+(deftest open-pdf-carries-a-return-type-hint
+  ;; Every arity must keep the ^PDDocument return hint. Without it a plain
+  ;; (with-open [d (open-pdf ...)] ...) reflects on .close at every call site.
+  (testing "no reflection warning at a with-open call site"
+    (doseq [form ['(fn [] (with-open [d (pdfplumber.document/open-pdf (byte-array 0))] 1))
+                  '(fn [] (with-open [d (pdfplumber.document/open-pdf (byte-array 0) nil)] 1))]]
+      (let [warnings (java.io.StringWriter.)]
+        (binding [*warn-on-reflection* true *err* warnings]
+          (eval form))
+        (is (not (re-find #"(?i)reflection" (str warnings)))
+            (str "reflection warning for " form ": " warnings))))))
+
 (deftest open-pdf-sources
   (let [bs (fix/simple-text-pdf)]
     (testing "byte array"

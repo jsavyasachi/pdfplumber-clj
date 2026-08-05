@@ -29,8 +29,8 @@
    `:encrypted-pdf` (password-protected when no password is supplied or the
    supplied password is incorrect),
    `:parse-failed` (not a readable PDF)."
-  ([source] (open-pdf source nil))
-  ([source opts]
+  (^PDDocument [source] (open-pdf source nil))
+  (^PDDocument [source opts]
    (let [password (:password opts)]
      (try
        (cond
