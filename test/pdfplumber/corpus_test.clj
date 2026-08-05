@@ -49,10 +49,19 @@
     (catch Throwable t
       {:crash (.getName (class t))})))
 
+(defn- required?
+  "CI sets PDFPLUMBER_CORPUS_REQUIRED so a missing or empty golden fails loudly
+   instead of passing as a skip. A scheduled parity job that goes green because
+   the corpus never downloaded is worse than no job at all."
+  []
+  (some? (System/getenv "PDFPLUMBER_CORPUS_REQUIRED")))
+
 (deftest ^:corpus python-pdfplumber-parity
   (if-not (.exists golden-file)
-    (testing "corpus absent — skipped (run dev/fetch-corpus.sh + dev/gen_golden.py)"
-      (is true))
+    (testing "corpus absent, skipped (run dev/fetch-corpus.sh + dev/gen_golden.py)"
+      (is (not (required?))
+          (str "PDFPLUMBER_CORPUS_REQUIRED is set but " golden-file " is missing. "
+               "The corpus fetch or golden generation failed.")))
     (let [golden (json/read-str (slurp golden-file) :key-fn keyword)
           rows (for [[fname g] golden
                      :let [name (clojure.core/name fname)
@@ -76,6 +85,11 @@
         (println "  crashes:" (mapv (juxt :name :crash) crashes)))
       (when (seq page-mismatch)
         (println "  page mismatch:" (mapv (juxt :name :pages #(get-in % [:golden :pages])) page-mismatch)))
+      (testing "the golden actually holds a corpus"
+        ;; Guards the other direction: a golden that generated but compared
+        ;; nothing would otherwise satisfy every assertion below vacuously.
+        (is (or (not (required?)) (>= (count ok) 50))
+            (str "only " (count ok) " comparable PDFs in " golden-file)))
       (testing "no uncaught crashes on any real-world PDF"
         (is (empty? (mapv (juxt :name :crash) crashes))))
       (testing "page count matches Python pdfplumber"

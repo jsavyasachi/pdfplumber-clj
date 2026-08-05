@@ -3,6 +3,7 @@
 [![Clojars Project](https://img.shields.io/clojars/v/net.clojars.savya/pdfplumber-clj.svg)](https://clojars.org/net.clojars.savya/pdfplumber-clj)
 [![cljdoc](https://cljdoc.org/badge/net.clojars.savya/pdfplumber-clj)](https://cljdoc.org/d/net.clojars.savya/pdfplumber-clj/CURRENT)
 [![test](https://github.com/jsavyasachi/pdfplumber-clj/actions/workflows/test.yml/badge.svg)](https://github.com/jsavyasachi/pdfplumber-clj/actions/workflows/test.yml)
+[![parity](https://github.com/jsavyasachi/pdfplumber-clj/actions/workflows/parity.yml/badge.svg)](https://github.com/jsavyasachi/pdfplumber-clj/actions/workflows/parity.yml)
 
 PDF extraction and inspection for Clojure, built on [Apache PDFBox](https://pdfbox.apache.org).
 The Clojure counterpart to Python's [`pdfplumber`](https://github.com/jsvine/pdfplumber):
@@ -23,13 +24,19 @@ strategy, and download the rows as CSV or JSON. Files are processed in memory an
 Actively developed (`0.6.0`). Pre-`1.0`, so data shapes may still refine.
 
 Covers the full Python pdfplumber extraction surface (text, words, chars,
-objects, tables, crop), validated against the pdfplumber corpus, plus:
+objects, tables, crop), plus:
 
 - **Streaming** extraction: reducible/transducer, page-at-a-time
 - **Visual debugging**: page render + overlays
 - **Tagged structure** trees
 - **Document metadata**: forms, outline, attachments, permissions, signatures
 - **CLI**: CSV/JSON object dump
+
+Parity is measured, not asserted. The `parity` workflow runs weekly: it fetches
+the upstream `jsvine/pdfplumber` test corpus, extracts every PDF with Python
+pdfplumber to build a baseline, and compares this library against it on page
+count, text similarity, and word count. The corpus is not committed, so run it
+locally with `dev/fetch-corpus.sh` then `dev/gen_golden.py`.
 
 ## Install
 

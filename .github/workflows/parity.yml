@@ -1,0 +1,58 @@
+name: parity
+
+# Verifies the README's parity claim against Python pdfplumber over the upstream
+# corpus. The corpus is not committed (licensing), so it is fetched here.
+# PDFPLUMBER_CORPUS_REQUIRED makes a missing or undersized corpus fail the run
+# rather than pass as a skip.
+
+on:
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  parity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: DeLaGuardo/setup-clojure@13.6.1
+        with:
+          cli: latest
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: m2-${{ hashFiles('deps.edn') }}
+          restore-keys: m2-
+
+      - name: Install Python pdfplumber
+        run: pip install --disable-pip-version-check pdfplumber
+
+      - name: Record the Python baseline version
+        run: python -c "import pdfplumber; print('pdfplumber', pdfplumber.__version__)"
+
+      - name: Fetch the upstream corpus
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: dev/fetch-corpus.sh
+
+      - name: Generate the golden
+        run: python dev/gen_golden.py
+
+      - name: Compare against Python pdfplumber
+        env:
+          PDFPLUMBER_CORPUS_REQUIRED: '1'
+        run: clojure -M:test --focus pdfplumber.corpus-test --no-capture-output
