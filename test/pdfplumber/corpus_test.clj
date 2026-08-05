@@ -94,5 +94,15 @@
         (is (empty? (mapv (juxt :name :crash) crashes))))
       (testing "page count matches Python pdfplumber"
         (is (empty? (mapv :name page-mismatch))))
+      ;; Similarity is asserted on the MEDIAN, deliberately. A handful of corpus
+      ;; PDFs score near zero because Python pdfplumber is the one that is
+      ;; wrong, so pinning a minimum would encode its bugs as our contract:
+      ;;   annotations-rotated-180.pdf  Python emits "elif FDP ymmuD" for
+      ;;                                "Dummy PDF file"; it does not handle
+      ;;                                180-degree page rotation.
+      ;;   issue-842-example.pdf        Python repeats every CJK glyph four
+      ;;                                times.
+      ;;   extra-attrs-example.pdf      Line-break placement only.
+      ;; Investigate a falling median, not an individual low score.
       (testing "aggregate text similarity is high"
         (is (>= (or (median sims) 0.0) 0.80))))))
