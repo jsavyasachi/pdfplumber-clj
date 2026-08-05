@@ -21,7 +21,8 @@ strategy, and download the rows as CSV or JSON. Files are processed in memory an
 
 ## Status
 
-Actively developed (`0.6.0`). Pre-`1.0`, so data shapes may still refine.
+Stable (`1.0.0`). Data shapes are settled and follow semantic versioning:
+breaking changes to the returned maps require a major bump.
 
 Covers the full Python pdfplumber extraction surface (text, words, chars,
 objects, tables, crop), plus:
@@ -43,13 +44,13 @@ locally with `dev/fetch-corpus.sh` then `dev/gen_golden.py`.
 deps.edn
 
 ```clojure
-net.clojars.savya/pdfplumber-clj {:mvn/version "0.6.0"}
+net.clojars.savya/pdfplumber-clj {:mvn/version "1.0.0"}
 ```
 
 Leiningen
 
 ```clojure
-[net.clojars.savya/pdfplumber-clj "0.6.0"]
+[net.clojars.savya/pdfplumber-clj "1.0.0"]
 ```
 
 Requires JDK 17+.

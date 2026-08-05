@@ -2,9 +2,24 @@
 
 All notable changes to this project are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this project adheres to [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [1.0.0] - 2026-08-05
+First stable release. The API and the returned data shapes are settled; breaking
+changes to either now require a major version bump. No breaking changes from
+`0.6.0`: upgrading is a version bump.
+
 ### Added
-- Password support for opening encrypted PDFs through `open-pdf` and `with-pdf`.
+- Password support for opening encrypted PDFs. `open-pdf` takes an optional
+  `{:password "..."}` options map, and `with-pdf` accepts it as a third binding
+  element: `(with-pdf [doc "statement.pdf" {:password "hunter2"}] ...)`. Both
+  the user password and the owner password open a protected document. A missing
+  or incorrect password still throws `:pdfplumber/error :encrypted-pdf`.
+- A weekly `parity` workflow that measures this library against Python
+  pdfplumber over the upstream corpus, so the parity claim is verified by CI
+  rather than asserted in the README.
+
+### Fixed
+- `open-pdf` carries its `^PDDocument` return type hint on every arity again, so
+  `(with-open [d (open-pdf ...)] ...)` no longer reflects on `.close`.
 
 ## [0.6.0] - 2026-07-17
 ### Added
