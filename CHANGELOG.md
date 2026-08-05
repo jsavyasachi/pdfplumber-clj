@@ -2,6 +2,10 @@
 
 All notable changes to this project are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+### Added
+- Password support for opening encrypted PDFs through `open-pdf` and `with-pdf`.
+
 ## [0.6.0] - 2026-07-17
 ### Added
 - First-class AcroForm access through `form-fields`, with field name, partial name, type, value, default, options, required/read-only flags, text multiline/max length, and first-widget page plus top-left bbox, and `field-values` for a name-to-value map.

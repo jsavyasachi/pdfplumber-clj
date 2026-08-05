@@ -53,6 +53,40 @@
          (catch clojure.lang.ExceptionInfo e
            (is (= :encrypted-pdf (:pdfplumber/error (ex-data e))))))))
 
+(deftest open-pdf-encrypted-sources
+  (let [bs (fix/encrypted-pdf)
+        f (temp-pdf bs)]
+    (doseq [[label source-fn]
+            [["path string" (constantly (.getPath f))]
+             ["java.io.File" (constantly f)]
+             ["byte array" (constantly bs)]
+             ["input stream" #(ByteArrayInputStream. bs)]]]
+      (testing (str "correct user password, " label)
+        (with-open [d (document/open-pdf (source-fn) {:password "user"})]
+          (is (= 1 (.getNumberOfPages d)))))
+      (testing (str "correct owner password, " label)
+        (with-open [d (document/open-pdf (source-fn) {:password "owner"})]
+          (is (= 1 (.getNumberOfPages d)))))
+      (testing (str "wrong password, " label)
+        (try
+          (document/open-pdf (source-fn) {:password "wrong"})
+          (is false "wrong password should fail")
+          (catch clojure.lang.ExceptionInfo e
+            (is (= :encrypted-pdf (:pdfplumber/error (ex-data e)))))))
+      (testing (str "no password, " label)
+        (try
+          (document/open-pdf (source-fn))
+          (is false "missing password should fail")
+          (catch clojure.lang.ExceptionInfo e
+            (is (= :encrypted-pdf (:pdfplumber/error (ex-data e))))))))))
+
+(deftest open-pdf-options-and-already-open
+  (let [bs (fix/simple-text-pdf)]
+    (with-open [d (document/open-pdf bs)]
+      (is (identical? d (document/open-pdf d {:password "ignored"}))))
+    (with-open [d (pdf/open-pdf bs {:password nil})]
+      (is (= 1 (.getNumberOfPages d))))))
+
 (deftest with-pdf-lifecycle
   (let [bs (fix/simple-text-pdf)
         captured (atom nil)
@@ -70,3 +104,8 @@
                        (reset! c d)
                        (throw (RuntimeException. "boom")))))
         (is (closed? @c))))))
+
+(deftest with-pdf-password
+  (is (= 1
+         (pdf/with-pdf [d (fix/encrypted-pdf) {:password "user"}]
+           (.getNumberOfPages ^PDDocument d)))))

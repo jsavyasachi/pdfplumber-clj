@@ -19,41 +19,57 @@
 (defn open-pdf
   "Open a PDF and return a PDFBox `PDDocument` handle. Accepts a path `String`,
    `java.io.File`, `byte[]`, or `java.io.InputStream` (an already-open
-   `PDDocument` is returned as-is). The caller owns closing it; prefer
-   `pdfplumber.core/with-pdf`.
+   `PDDocument` is returned as-is). An optional `{:password string}` options map
+   supplies the password for an encrypted PDF. The password is ignored when
+   `source` is already an open `PDDocument`. The caller owns closing the result;
+   prefer `pdfplumber.core/with-pdf`.
 
    Throws `ex-info` carrying `:pdfplumber/error`:
    `:invalid-input` (unsupported source or missing file),
-   `:encrypted-pdf` (password-protected),
+   `:encrypted-pdf` (password-protected when no password is supplied or the
+   supplied password is incorrect),
    `:parse-failed` (not a readable PDF)."
-  ^PDDocument [source]
-  (try
-    (cond
-      (instance? PDDocument source) source
+  ([source] (open-pdf source nil))
+  ([source opts]
+   (let [password (:password opts)]
+     (try
+       (cond
+         (instance? PDDocument source) source
 
-      (string? source)
-      (let [f (File. ^String source)]
-        (if (.exists f)
-          (Loader/loadPDF f)
-          (fail! :invalid-input (str "File not found: " source) {:path source})))
+         (string? source)
+         (let [f (File. ^String source)]
+           (if (.exists f)
+             (if (nil? password)
+               (Loader/loadPDF f)
+               (Loader/loadPDF f ^String password))
+             (fail! :invalid-input (str "File not found: " source) {:path source})))
 
-      (instance? File source) (Loader/loadPDF ^File source)
+         (instance? File source)
+         (if (nil? password)
+           (Loader/loadPDF ^File source)
+           (Loader/loadPDF ^File source ^String password))
 
-      (bytes? source) (Loader/loadPDF ^bytes source)
+         (bytes? source)
+         (if (nil? password)
+           (Loader/loadPDF ^bytes source)
+           (Loader/loadPDF ^bytes source ^String password))
 
-      (instance? InputStream source)
-      (Loader/loadPDF (RandomAccessReadBuffer. ^InputStream source))
+         (instance? InputStream source)
+         (let [random-access (RandomAccessReadBuffer. ^InputStream source)]
+           (if (nil? password)
+             (Loader/loadPDF random-access)
+             (Loader/loadPDF random-access ^String password)))
 
-      :else
-      (fail! :invalid-input (str "Unsupported PDF source: " (class source))
-             {:source-class (.getName (class source))}))
-    (catch InvalidPasswordException e
-      (fail! :encrypted-pdf "PDF is encrypted or password-protected" {} e))
-    (catch IOException e
-      (fail! :parse-failed "Failed to parse PDF"
-             {:cause-class (.getName (class e))
-              :cause-message (.getMessage e)}
-             e))))
+         :else
+         (fail! :invalid-input (str "Unsupported PDF source: " (class source))
+                {:source-class (.getName (class source))}))
+       (catch InvalidPasswordException e
+         (fail! :encrypted-pdf "PDF is encrypted or password-protected" {} e))
+       (catch IOException e
+         (fail! :parse-failed "Failed to parse PDF"
+                {:cause-class (.getName (class e))
+                 :cause-message (.getMessage e)}
+                e))))))
 
 (defn- cal->iso [^Calendar c]
   (when c (str (.toInstant c))))

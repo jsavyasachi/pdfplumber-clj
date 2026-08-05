@@ -21,9 +21,10 @@
 
 (defn open-pdf
   "Open a PDF, returning a document handle. See `pdfplumber.document/open-pdf`.
+   Pass `{:password string}` as an optional second argument for encrypted PDFs.
    The caller must close it (or use `with-pdf`)."
-  [source]
-  (document/open-pdf source))
+  ([source] (document/open-pdf source))
+  ([source opts] (document/open-pdf source opts)))
 
 (defn metadata
   "Document metadata map. See `pdfplumber.document/metadata`."
@@ -356,11 +357,17 @@
    always close the document on exit (including on exception).
 
        (with-pdf [doc \"statement.pdf\"]
+         (text doc {:page 1}))
+
+       (with-pdf [doc \"statement.pdf\" {:password \"hunter2\"}]
          (text doc {:page 1}))"
-  [[binding source] & body]
-  `(let [doc# (document/open-pdf ~source)
-         ~binding doc#]
-     (try
-       ~@body
-       (finally
-         (.close ^PDDocument doc#)))))
+  [[binding source & [opts]] & body]
+  (let [open-call (if (nil? opts)
+                    `(document/open-pdf ~source)
+                    `(document/open-pdf ~source ~opts))]
+    `(let [doc# ~open-call
+           ~binding doc#]
+       (try
+         ~@body
+         (finally
+           (.close ^PDDocument doc#))))))

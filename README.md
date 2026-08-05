@@ -55,6 +55,10 @@ Requires JDK 17+.
 (pdf/with-pdf [doc "statement.pdf"]
   (pdf/text doc {:page 1}))           ; => "Account statement\n..."
 
+;; Supply :password for password-protected PDFs.
+(pdf/with-pdf [doc "statement.pdf" {:password "hunter2"}]
+  (pdf/text doc {:page 1}))
+
 (pdf/with-pdf [doc "statement.pdf"]
   (pdf/words doc {:page 1}))          ; => [{:text "Account" :x0 .. :top .. :x1 .. :bottom ..} ...]
 
