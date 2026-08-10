@@ -1,17 +1,16 @@
 # Contributing to pdfplumber-clj
 
-Thanks for your interest in improving `pdfplumber-clj`. Bug reports, fixes, and
-focused feature contributions are all welcome.
+Send bug reports, fixes, and focused feature contributions to `pdfplumber-clj`.
 
 ## Before you start
 
-- For anything beyond a trivial fix, **open an issue first** so we can agree on
-  the approach before you invest time.
+- For a change beyond a trivial fix, **open an issue first**. We can agree on
+  the approach before you spend time.
 - Check existing issues and pull requests to avoid duplicate work.
 
 ## Project layout
 
-A single `deps.edn` library. Source under `src/pdfplumber/`:
+This is a single `deps.edn` library. Source files are in `src/pdfplumber/`:
 
 | Namespace | Purpose |
 |---|---|
@@ -36,25 +35,25 @@ clojure -M:1.12:test       # Clojure 1.12 matrix cell
 clojure -T:build jar       # build a jar
 ```
 
-Optional real-world / parity corpus (nothing is committed):
+Optional real-world/parity corpus. The repository does not commit it:
 
 ```bash
 dev/fetch-corpus.sh        # downloads the jsvine/pdfplumber test PDFs into corpus/
 ```
 
-The bar for a mergeable change:
+Requirements for a mergeable change:
 
 - **Tests first.** Add or update tests for the behavior you change; for a bug
   fix, include a regression test that fails before your fix and passes after.
 - **Green build.** `clojure -M:test` passes and `src` compiles with **zero**
   reflection warnings (`*warn-on-reflection*` is on).
-- **No scope creep.** Keep each pull request to one logical change.
+- **One scope.** Keep each pull request to one logical change.
 
 ## Commits and pull requests
 
 - Follow [Conventional Commits](https://www.conventionalcommits.org/)
   (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`, `chore:` …).
-- Keep the subject in the imperative mood and under ~72 characters.
+- Keep the subject in the imperative mood and below about 72 characters.
 - Update `CHANGES.md` when your change is user-visible.
 - Rebase on the latest `main` before opening the pull request.
 

@@ -1,5 +1,5 @@
 (ns pdfplumber.attachments
-  "Embedded-file extraction."
+  "Extract embedded files."
   (:import [java.util Calendar]
            [org.apache.pdfbox.pdmodel
             PDDocument PDDocumentCatalog PDDocumentNameDictionary PDEmbeddedFilesNameTreeNode]

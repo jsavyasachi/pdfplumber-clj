@@ -1,5 +1,5 @@
 (ns pdfplumber.image
-  "Page raster rendering and visual debugging overlays."
+  "Render page rasters and overlay visual debug data."
   (:refer-clojure :exclude [copy reset])
   (:require [pdfplumber.document :as document]
             [pdfplumber.geometry :as geometry]
@@ -20,7 +20,7 @@
 (defrecord PageImage [^BufferedImage image source opts scale root width height])
 
 (defn page-image?
-  "True when `x` is a PageImage."
+  "True if `x` is a PageImage."
   [x]
   (instance? PageImage x))
 
@@ -175,7 +175,7 @@
      (draw-line pi [[left y] [(+ (double left) (double (:width pi))) y]] opts))))
 
 (defn draw-rect
-  "Draw a bbox or bounded object with optional fill and stroke."
+  "Draw a bbox or bounded object with an optional fill and stroke."
   ([pi object] (draw-rect pi object {}))
   ([pi object opts]
    (let [[x0 top x1 bottom] (->bbox object)
@@ -283,12 +283,12 @@
       {:stroke [0 128 255 255] :fill [0 128 255 30]}))))
 
 (defn reset
-  "Re-render the PageImage source without overlays."
+  "Render the PageImage source again without overlays."
   [pi]
   (to-image (:source pi) (:opts pi)))
 
 (defn copy
-  "Deep-copy a PageImage and its raster."
+  "Make a deep copy of a PageImage and its raster."
   [pi]
   (assoc pi :image (copy-raster ^BufferedImage (:image pi))))
 

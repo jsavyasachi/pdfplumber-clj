@@ -2,7 +2,7 @@
   (:require [clojure.test :refer [deftest testing is]]
             [pdfplumber.geometry :as g]))
 
-;; Public bbox convention: [x0 top x1 bottom], top-left origin, top <= bottom.
+;; Public bbox format: [x0 top x1 bottom], top-left origin, top <= bottom.
 
 (deftest flip-y-test
   (testing "flip-y maps between bottom-origin and top-origin about page height"
@@ -14,7 +14,7 @@
 
 (deftest pdfbox-rect->bbox
   (testing "PDFBox lower-left rect (x y w h) -> top-left [x0 top x1 bottom]"
-    ;; object 20pt tall sitting near the top of a 792pt page
+    ;; A 20pt object is near the top of a 792pt page.
     (is (= [72.0 80.0 172.0 100.0]
            (g/pdfbox-rect->bbox 792 72.0 692.0 100.0 20.0))))
   (testing "object flush with the page bottom"

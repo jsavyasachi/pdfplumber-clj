@@ -65,7 +65,7 @@
       (is (every? #(= :line (:type %)) (pdf/objects d {:types #{:line}})))
       (is (= #{:line :rect} (set (map :type (pdf/objects d))))))
     (testing ":bbox keeps only intersecting objects"
-      ;; a box around the horizontal rule only (top-left ~ y 92)
+      ;; A box around the horizontal rule only (top-left y is about 92).
       (let [near-top (pdf/objects d {:bbox [0 80 612 100]})]
         (is (pos? (count near-top)))
         (is (every? #(<= (:top %) 100) near-top))))))

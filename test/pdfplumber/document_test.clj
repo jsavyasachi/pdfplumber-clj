@@ -17,8 +17,8 @@
     f))
 
 (deftest open-pdf-carries-a-return-type-hint
-  ;; Every arity must keep the ^PDDocument return hint. Without it a plain
-  ;; (with-open [d (open-pdf ...)] ...) reflects on .close at every call site.
+  ;; Each arity must keep the ^PDDocument return hint. Without it, a plain
+  ;; (with-open [d (open-pdf ...)] ...) reflects on .close at each call site.
   (testing "no reflection warning at a with-open call site"
     (doseq [form ['(fn [] (with-open [d (pdfplumber.document/open-pdf (byte-array 0))] 1))
                   '(fn [] (with-open [d (pdfplumber.document/open-pdf (byte-array 0) nil)] 1))]]

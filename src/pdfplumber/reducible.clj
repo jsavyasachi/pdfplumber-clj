@@ -1,5 +1,5 @@
 (ns pdfplumber.reducible
-  "Single-pass, page-at-a-time object extraction."
+  "Extract objects in one pass, one page at a time."
   (:require [pdfplumber.objects :as objects]
             [pdfplumber.page :as page]
             [pdfplumber.text :as text])
@@ -47,19 +47,19 @@
           (seq (step pages)))))))
 
 (defn page-reducible
-  "Reducible page stream from `(extractor doc page-opts)`. Extracts one page at
-   a time and stops before later pages when reduction terminates early."
+  "Reducible page stream from `(extractor doc page-opts)`. It extracts one page
+   at a time. It stops before later pages when reduction stops early."
   ([source extractor] (page-reducible source extractor {}))
   ([source extractor opts] (reducible-pages source extractor opts)))
 
 (defn reducible-chars
-  "Single-pass reducible character stream. Extracts one page at a time and a
-   reduced result stops extraction before later pages are visited."
+  "Single-pass reducible character stream. It extracts one page at a time. A
+   reduced result stops extraction before it visits later pages."
   ([source] (reducible-chars source {}))
   ([source opts] (page-reducible source text/chars opts)))
 
 (defn reducible-words
-  "Reducible word stream, extracted one page at a time."
+  "Reducible word stream. It extracts one page at a time."
   ([source] (reducible-words source {}))
   ([source opts] (page-reducible source text/words opts)))
 

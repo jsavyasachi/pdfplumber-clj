@@ -4,14 +4,13 @@
    The public coordinate system has a top-left origin (matching Python
    `pdfplumber`): a bounding box is `[x0 top x1 bottom]` in PDF user-space points
    with `x0 <= x1` and `top <= bottom`. PDFBox works in a bottom-left origin, so
-   conversion happens here and nowhere else. All extraction code must use these
-   helpers rather than open-coding the arithmetic."
+   conversion happens here only. All extraction code must use these helpers."
   (:refer-clojure :exclude [contains?]))
 
 (set! *warn-on-reflection* true)
 
 (defn flip-y
-  "Convert a single y between bottom-origin and top-origin about `page-height`.
+  "Convert one y between bottom-origin and top-origin about `page-height`.
    Self-inverse: `(flip-y h (flip-y h y)) == y`."
   [page-height y]
   (- page-height y))
@@ -35,8 +34,8 @@
   [(/ (+ (double x0) x1) 2) (/ (+ (double top) bottom) 2)])
 
 (defn intersects?
-  "True when `a` and `b` overlap with positive area. Edge-touching boxes (zero
-   overlap area) are not considered intersecting."
+  "True if `a` and `b` overlap with positive area. Edge-touching boxes with zero
+   overlap area do not intersect."
   [[ax0 atop ax1 abot] [bx0 btop bx1 bbot]]
   (and (< ax0 bx1) (< bx0 ax1)
        (< atop bbot) (< btop abot)))

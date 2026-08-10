@@ -1,5 +1,5 @@
 (ns pdfplumber.form
-  "AcroForm field extraction with top-left widget geometry."
+  "Extract AcroForm fields with top-left widget geometry."
   (:require [pdfplumber.geometry :as g])
   (:import [org.apache.pdfbox.pdmodel PDDocument PDPage]
            [org.apache.pdfbox.pdmodel.common PDRectangle]
@@ -96,7 +96,7 @@
       :always (merge (widget-geometry doc field)))))
 
 (defn form-fields
-  "Vector of terminal AcroForm fields with first-widget geometry."
+  "Return a vector of terminal AcroForm fields with first-widget geometry."
   [^PDDocument doc]
   (let [catalog (.getDocumentCatalog doc)
         ^PDAcroForm form (.getAcroForm catalog)]

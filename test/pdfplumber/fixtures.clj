@@ -1,7 +1,7 @@
 (ns pdfplumber.fixtures
-  "Deterministic fixture-PDF generators for tests (PDFBox writer side).
+  "Deterministic fixture-PDF generators for tests. PDFBox writes the PDFs.
    Generating fixtures in code avoids opaque committed binaries and lets tests
-   assert against known positions. Generated with PDFBox 3.0.x."
+   assert against known positions. PDFBox 3.0.x makes the fixtures."
   (:import [org.apache.pdfbox.pdmodel PDDocument PDDocumentInformation PDPage PDPageContentStream]
            [org.apache.pdfbox.pdmodel.common PDRectangle]
            [org.apache.pdfbox.pdmodel.font PDType1Font Standard14Fonts$FontName]
@@ -40,7 +40,7 @@
      (->bytes doc))))
 
 (defn multi-page-pdf
-  "PDF with one page per string in `texts`, each drawn at (72, 700). Returns byte[]."
+  "PDF with one page for each string in `texts`. Each is drawn at (72, 700). Returns byte[]."
   ^bytes [texts]
   (with-open [doc (PDDocument.)]
     (doseq [t texts]
@@ -160,7 +160,7 @@
     (->bytes doc)))
 
 (defn right-aligned-text-table-pdf
-  "Two-column table whose words share right edges rather than left edges."
+  "Two-column table with words that share right edges, not left edges."
   ^bytes []
   (with-open [doc (PDDocument.)]
     (let [page (PDPage. PDRectangle/LETTER)

@@ -1,10 +1,10 @@
 (ns pdfplumber.signature
-  "Digital-signature metadata and document-coverage inspection.
+  "Inspect digital-signature metadata and document coverage.
 
-   This namespace does not perform cryptographic signature validation, certificate
-   chain validation, revocation checking, or trust-anchor evaluation. The coverage
-   flag is only an integrity signal showing whether a signature ByteRange spans the
-   complete original PDF except for one signature-contents gap."
+   This namespace does not validate cryptographic signatures, certificate chains,
+   revocation, or trust anchors. The coverage flag is an integrity signal. It
+   shows whether a signature ByteRange spans the original PDF except for one
+   signature-contents gap."
   (:import [java.lang ReflectiveOperationException]
            [java.lang.reflect Field]
            [java.util Calendar]
@@ -23,12 +23,12 @@
         nil))))
 
 (defn- source-length
-  "Return the retained original PDF source length when PDFBox exposes it.
+  "Return the retained original PDF source length if PDFBox exposes it.
 
-   PDFBox 3 retains the parsed RandomAccessRead as a private PDDocument field but
-   has no public source-length accessor. Access is isolated here and failure yields
-   nil, so callers omit the coverage signal instead of guessing from a reserialized
-   document or trusting the ByteRange endpoint itself."
+   PDFBox 3 retains the parsed RandomAccessRead as a private PDDocument field.
+   It has no public source-length accessor. This function isolates access. On
+   failure, it returns nil. Callers omit the coverage signal instead of guessing
+   from a reserialized document or trusting the ByteRange endpoint."
   [^PDDocument doc]
   (try
     (when-let [^Field field @pdf-source-field]
@@ -92,10 +92,11 @@
 
    Present PDF fields are returned as `:name`, `:reason`, `:location`,
    `:contact-info`, `:signing-time`, `:sub-filter`, `:filter`, and `:byte-range`.
-   `:covers-whole-document?` compares the ByteRange with the retained original
-   source length and requires exactly one gap. It is omitted if that length cannot
-   be obtained. This is an integrity signal only: cryptographic signature validity,
-   certificate trust, and revocation status are not checked."
+   `:covers-whole-document?` compares the ByteRange with the original source
+   length and requires exactly one gap. The function omits it if it cannot get
+   the length.
+   This is an integrity signal only. It does not check cryptographic signature
+   validity, certificate trust, or revocation status."
   [^PDDocument doc]
   (let [length (source-length doc)]
     (mapv #(signature-map % length) (.getSignatureDictionaries doc))))

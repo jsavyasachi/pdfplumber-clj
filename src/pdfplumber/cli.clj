@@ -1,5 +1,5 @@
 (ns pdfplumber.cli
-  "Command-line PDF object export."
+  "Export PDF objects from the command line."
   (:require [clojure.data.json :as json]
             [clojure.string :as str]
             [pdfplumber.core :as pdf]))

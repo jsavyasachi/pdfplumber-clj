@@ -1,5 +1,5 @@
 (ns pdfplumber.structure
-  "Tagged-PDF logical structure extraction."
+  "Extract tagged-PDF logical structures."
   (:import [org.apache.pdfbox.cos COSArray COSBoolean COSDictionary COSInteger
             COSName COSNumber COSObject COSString]
            [org.apache.pdfbox.pdmodel PDDocument PDPage]

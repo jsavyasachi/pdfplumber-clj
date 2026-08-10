@@ -1,5 +1,5 @@
 (ns pdfplumber.permissions
-  "Document access permissions."
+  "Report document access permissions."
   (:import [org.apache.pdfbox.pdmodel PDDocument]
            [org.apache.pdfbox.pdmodel.encryption AccessPermission PDEncryption]))
 

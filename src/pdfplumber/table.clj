@@ -1,5 +1,5 @@
 (ns pdfplumber.table
-  "Table detection and extraction from ruling lines, text alignments, or
+  "Detect and extract tables from ruling lines, text alignments, or
    caller-supplied explicit lines. Public coordinates use
    `[x0 top x1 bottom]` in a top-left origin."
   (:require [clojure.string :as str]
@@ -332,7 +332,7 @@
    (detected-tables doc (normalize-options opts))))
 
 (defn extract-table
-  "Extract the first detected table, ordered top-to-bottom then left-to-right,
+  "Extract the first detected table, ordered top-to-bottom, then left-to-right,
    or nil when no table is found. This preserves the singular API while
    `extract-tables` returns all independent table regions. Options are the same
    as `extract-tables`."

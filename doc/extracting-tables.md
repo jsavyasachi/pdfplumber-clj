@@ -7,9 +7,8 @@
 (pdf/extract-tables doc opts)
 ```
 
-Both also accept a cropped page view from `crop-page`. `extract-table` returns
-one table map. `extract-tables` returns a vector and currently returns at most
-one table.
+Both functions accept a cropped page view from `crop-page`. `extract-table`
+returns one table map. `extract-tables` returns a vector with at most one table.
 
 ## Return Shape
 
@@ -35,7 +34,7 @@ Tables have this shape:
 `:rows` is the main result: a vector of rows, each a vector of cell maps. Each
 cell has `:text` and `:bbox`.
 
-The exact coordinates above are illustrative. The shape matches the API.
+The coordinates above are illustrative. The shape matches the API.
 
 ## Options
 
@@ -60,10 +59,9 @@ Shared options:
 - `:min-words-horizontal` - default `1`. Minimum non-blank cells required to
   keep a row.
 
-Table extraction also passes options through to word/object extraction. That
-means `:page`, `:bbox`, `:x-tolerance`, `:y-tolerance`, and `:types` can affect
-the data the table strategies see. In normal use, prefer the table-specific
-options above plus `:page` and `:bbox`.
+Table extraction also passes options to word/object extraction. Therefore,
+`:page`, `:bbox`, `:x-tolerance`, `:y-tolerance`, and `:types` can affect the
+data used by table strategies. Use the table options above with `:page` and `:bbox`.
 
 ## Lines Strategy
 
@@ -75,12 +73,12 @@ including rectangle edges.
   (pdf/extract-table doc {:page 1 :strategy :lines}))
 ```
 
-The implementation:
+The implementation does these steps:
 
 - extracts graphical objects from the page
 - uses horizontal and vertical `:line` objects plus `:rect` sides as table edges
 - snaps nearby x/y positions using `:snap-tolerance`
-- finds grid cells whose four corners are intersections
+- finds grid cells with four corners at intersections
 - assigns words to cells by word-center containment
 
 The returned table includes `:cells` for the grid cell bounding boxes and
@@ -98,7 +96,7 @@ Use `:text` for whitespace-aligned tables without ruling lines.
                           :text-y-tolerance 3.0}))
 ```
 
-The implementation:
+The implementation does these steps:
 
 - extracts words
 - groups words into rows by `:top` within `:text-y-tolerance`
@@ -130,5 +128,5 @@ Explicit options override the view:
 (pdf/extract-table table-region {:page 2 :strategy :text})
 ```
 
-Cropping filters extraction to the view's bounding box. Coordinates in returned
-rows, cells, words, and objects remain in the original page coordinate system.
+Cropping limits extraction to the view's bounding box. Coordinates in returned
+rows, cells, words, and objects stay in the original page coordinate system.

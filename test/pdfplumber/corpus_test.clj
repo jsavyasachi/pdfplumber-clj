@@ -1,5 +1,5 @@
 (ns pdfplumber.corpus-test
-  "Opt-in parity test against Python pdfplumber over a real-world corpus.
+  "Optional parity test against Python pdfplumber with a real-world corpus.
 
    Reads `corpus/golden.json` (produced by `dev/gen_golden.py`) and the PDFs in
    `corpus/pdfplumber/`; both are gitignored. When the golden is absent the test
@@ -35,7 +35,7 @@
           (/ (+ (nth v (dec (quot n 2))) (nth v (quot n 2))) 2.0)))))
 
 (defn- probe [name]
-  "Extract with pdfplumber-clj; return {:pages :text :words} or {:handled msg}
+  "Extract with pdfplumber-clj. Return {:pages :text :words} or {:handled msg}
    for a graceful :pdfplumber/error, or {:crash class} for anything uncaught."
   (try
     (pdf/with-pdf [d (io/file corpus-dir name)]
@@ -50,7 +50,7 @@
       {:crash (.getName (class t))})))
 
 (defn- required?
-  "CI sets PDFPLUMBER_CORPUS_REQUIRED so a missing or empty golden fails loudly
+  "CI sets PDFPLUMBER_CORPUS_REQUIRED. A missing or empty golden then fails
    instead of passing as a skip. A scheduled parity job that goes green because
    the corpus never downloaded is worse than no job at all."
   []
@@ -68,8 +68,8 @@
                            r (probe name)]]
                  (assoc r :name name :golden g))
           crashes (filter :crash rows)
-          ;; Only compare where Python produced a real baseline (opened, >0 pages).
-          ;; A 0-page / errored golden is a pdfminer parse failure, not a baseline.
+          ;; Compare only where Python produced a baseline with more than zero pages.
+          ;; A zero-page or errored golden is a pdfminer parse failure, not a baseline.
           ok (filter (fn [r] (and (:pages r)
                                   (nil? (get-in r [:golden :error]))
                                   (pos? (get-in r [:golden :pages] 0)))) rows)
@@ -86,23 +86,23 @@
       (when (seq page-mismatch)
         (println "  page mismatch:" (mapv (juxt :name :pages #(get-in % [:golden :pages])) page-mismatch)))
       (testing "the golden actually holds a corpus"
-        ;; Guards the other direction: a golden that generated but compared
-        ;; nothing would otherwise satisfy every assertion below vacuously.
+        ;; This guards the other direction. A golden that compares nothing could
+        ;; otherwise satisfy each assertion below vacuously.
         (is (or (not (required?)) (>= (count ok) 50))
             (str "only " (count ok) " comparable PDFs in " golden-file)))
       (testing "no uncaught crashes on any real-world PDF"
         (is (empty? (mapv (juxt :name :crash) crashes))))
       (testing "page count matches Python pdfplumber"
         (is (empty? (mapv :name page-mismatch))))
-      ;; Similarity is asserted on the MEDIAN, deliberately. A handful of corpus
-      ;; PDFs score near zero because Python pdfplumber is the one that is
-      ;; wrong, so pinning a minimum would encode its bugs as our contract:
+      ;; The test asserts similarity on the MEDIAN. Some corpus PDFs score near
+      ;; zero because Python pdfplumber is wrong. A minimum would make its bugs
+      ;; part of this contract:
       ;;   annotations-rotated-180.pdf  Python emits "elif FDP ymmuD" for
       ;;                                "Dummy PDF file"; it does not handle
       ;;                                180-degree page rotation.
       ;;   issue-842-example.pdf        Python repeats every CJK glyph four
       ;;                                times.
       ;;   extra-attrs-example.pdf      Line-break placement only.
-      ;; Investigate a falling median, not an individual low score.
+      ;; Investigate a lower median, not one low score.
       (testing "aggregate text similarity is high"
         (is (>= (or (median sims) 0.0) 0.80))))))

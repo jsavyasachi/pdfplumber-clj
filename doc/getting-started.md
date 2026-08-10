@@ -1,7 +1,7 @@
 # Getting Started
 
 `pdfplumber-clj` extracts plain Clojure data from digitally generated PDFs. It
-is inspired by Python's `pdfplumber` and uses Apache PDFBox underneath.
+uses Apache PDFBox and follows Python's `pdfplumber`.
 
 Require the public API namespace:
 
@@ -38,8 +38,8 @@ or an already-open `org.apache.pdfbox.pdmodel.PDDocument`.
       (.close doc))))
 ```
 
-Most code should use `with-pdf`, which closes the document when the body exits,
-including when an exception is thrown:
+Most code should use `with-pdf`. It closes the document when the body exits,
+including after an exception:
 
 ```clojure
 (pdf/with-pdf [doc "statement.pdf"]
@@ -63,7 +63,7 @@ present in the PDF:
 ;;     :author "Acme Bank"}
 ```
 
-Possible metadata keys are `:page-count`, `:title`, `:author`, `:subject`,
+Metadata keys can be `:page-count`, `:title`, `:author`, `:subject`,
 `:keywords`, `:creator`, `:producer`, `:creation-date`, and
 `:modification-date`. Dates are ISO-8601 strings.
 
@@ -110,16 +110,16 @@ Use `words` when you need positions:
 ;;     {:text "PDF" ...}]
 ```
 
-Coordinates in examples are illustrative. Exact values depend on the PDF font
-metrics.
+The coordinate values in these examples are illustrative. Exact values depend
+on PDF font metrics.
 
 ## Plain Data
 
 The API returns Clojure maps, vectors, strings, numbers, and keywords. That data
 is EDN/JSON-friendly and does not expose PDFBox objects in extraction results.
 
-The public coordinate system uses PDF user-space points with a top-left origin.
-A bounding box is always:
+The public coordinate system uses PDF user-space points and a top-left origin.
+A bounding box always has this form:
 
 ```clojure
 [x0 top x1 bottom]
@@ -133,7 +133,7 @@ Rules:
 - `y` increases top to bottom
 - page maps use `:bbox [0.0 0.0 width height]`
 
-PDFBox uses a bottom-left origin internally for graphics. `pdfplumber-clj`
-converts graphical object coordinates to the public top-left coordinate system.
-Text positions from PDFBox's text stripper are already direction-adjusted into
-top-left coordinates before character maps are built.
+PDFBox uses a bottom-left origin for graphics. `pdfplumber-clj` converts graphic
+object coordinates to the public top-left coordinate system. PDFBox's text
+stripper adjusts text positions to top-left coordinates before it makes character
+maps.

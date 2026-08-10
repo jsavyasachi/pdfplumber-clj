@@ -1,6 +1,6 @@
 (ns pdfplumber.objects
-  "Page object extraction (lines, rectangles, curves, and images) via a
-   PDFGraphicsStreamEngine subclass.
+  "Extract page objects with a PDFGraphicsStreamEngine subclass. Objects include
+   lines, rectangles, curves, and images.
 
    PDFBox delivers path coordinates already transformed by the CTM into page
    space (bottom-left origin); we collect painted subpaths and flip them to the
@@ -107,7 +107,7 @@
       include-data? (assoc :bytes (png-bytes image)))))
 
 (defn- object-engine
-  "A PDFGraphicsStreamEngine that appends top-left object maps to `out`."
+  "A PDFGraphicsStreamEngine that adds top-left object maps to `out`."
   ^PDFGraphicsStreamEngine [^PDPage page page-no doctop-offset out include-image-data?]
   (let [page-h (double (.getHeight (.getMediaBox page)))
         st (atom {:cur nil :start nil :lines [] :rects [] :curves []})
@@ -171,7 +171,7 @@
   [(:x0 o) (:top o) (:x1 o) (:bottom o)])
 
 (defn objects
-  "Vector of page object maps. Each is `{:type :line|:rect|:curve|:image :x0
+  "Vector of page object maps. Each map is `{:type :line|:rect|:curve|:image :x0
    :top :x1 :bottom :page-number ...}`. Image maps include pixel dimensions,
    color metadata, and `:object-type :image`. Options: `:page` (1-based),
    `:types` (a set to keep), `:bbox` (keep intersecting objects), and
@@ -209,7 +209,7 @@
   ([doc opts] (objects doc (assoc opts :types #{:curve}))))
 
 (defn objects-by-type
-  "Object collections grouped under singular type keywords."
+  "Object collections grouped by singular type keywords."
   ([doc] (objects-by-type doc {}))
   ([doc opts] (into {} (map (fn [[type values]] [type (vec values)]))
                     (group-by :type (objects doc opts)))))

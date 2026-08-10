@@ -1,5 +1,5 @@
 (ns pdfplumber.outline
-  "Document outline extraction."
+  "Extract document outlines."
   (:import [java.io IOException]
            [org.apache.pdfbox.pdmodel PDDocument PDDocumentCatalog PDPage PDPageTree]
            [org.apache.pdfbox.pdmodel.interactive.documentnavigation.outline

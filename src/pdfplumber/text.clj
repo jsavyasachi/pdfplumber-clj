@@ -1,5 +1,5 @@
 (ns pdfplumber.text
-  "Character, word, and text extraction over PDFBox's PDFTextStripper.
+  "Extract characters, words, and text with PDFBox's PDFTextStripper.
 
    PDFTextStripper already reports direction-adjusted coordinates in a top-left
    origin, so char maps are built directly from `getXDirAdj`/`getYDirAdj` without
@@ -51,7 +51,7 @@
      :upright (zero? (mod (double (.getDir tp)) 360.0))
      :matrix (matrix-values (.getTextMatrix tp))
      :object-type :char
-     ;; Legacy spellings remain supported.
+     ;; Legacy spellings are supported.
      :font-name fontname
      :font-size size
      :page-number page-no}))
@@ -60,7 +60,7 @@
   [(:x0 c) (:top c) (:x1 c) (:bottom c)])
 
 (defn- collecting-stripper
-  "A PDFTextStripper that appends each char map (tagged with `page-no`) to `acc`."
+  "A PDFTextStripper that adds each char map, tagged with `page-no`, to `acc`."
   ^PDFTextStripper [acc page-no page-height doctop-offset use-text-flow]
   (if use-text-flow
     (proxy [PDFTextStripper] []
@@ -122,7 +122,7 @@
   (or (nil? s) (str/blank? s)))
 
 (defn- cluster-lines
-  "Group chars into lines, top-to-bottom, by `:top` within `y-tol`."
+  "Group chars into lines from top to bottom by `:top` within `y-tol`."
   [chars y-tol use-text-flow]
   (reduce (fn [acc c]
             (let [line (peek acc)
@@ -159,7 +159,8 @@
   (and prior (some #(not= (get prior %) (get c %)) extra-attrs)))
 
 (defn- line-word-groups
-  "Split a line's chars (sorted left-to-right, whitespace retained) into words.
+  "Split a line's chars into words. The chars are sorted left-to-right and
+   retain whitespace.
    A whitespace char or a gap wider than `x-tol` starts a new word."
   [line {:keys [x-tolerance keep-blank-chars horizontal-ltr extra-attrs
                 split-at-punctuation use-text-flow]
@@ -209,7 +210,7 @@
                   groups)}))
 
 (defn words
-  "Vector of word maps `{:text :x0 :top :x1 :bottom :page-number}`, reading order.
+  "Vector of word maps `{:text :x0 :top :x1 :bottom :page-number}` in reading order.
    Options: `:page`, `:bbox`, `:x-tolerance` (default 3.0), `:y-tolerance`
    (default 3.0)."
   ([doc] (words doc {}))
@@ -237,7 +238,7 @@
           word-chars))
 
 (defn text-map
-  "Text output plus `[source-char output-character]` tuples. Inserted spaces and
+  "Text output and `[source-char output-character]` tuples. Inserted spaces and
    newlines carry a nil source char."
   ([doc] (text-map doc {}))
   ([doc opts]
@@ -336,7 +337,7 @@
          matches)))))
 
 (defn dedupe-char-records
-  "Remove duplicate chars within positional `:tolerance`, comparing `:text`
+  "Remove duplicate chars within positional `:tolerance`. It compares `:text`
    plus configurable `:compare-attrs` (default fontname, size, upright)."
   ([char-records] (dedupe-char-records char-records {}))
   ([char-records {:keys [tolerance compare-attrs extra-attrs]
@@ -381,8 +382,8 @@
       out)))
 
 (defn extract-text-simple
-  "Fast text reconstruction by doctop line clustering and direct character-gap
-   spacing, without building word or text maps."
+  "Reconstruct text quickly with doctop line clusters and direct character-gap
+   spacing. It does not build word or text maps."
   ([doc] (extract-text-simple doc {}))
   ([doc {:keys [x-tolerance y-tolerance]
          :or {x-tolerance default-tolerance y-tolerance default-tolerance}
@@ -392,7 +393,7 @@
         (str/join "\n"))))
 
 (defn text
-  "Reconstructed text: words joined by spaces within a line, lines by newlines.
+  "Reconstructed text: words join with spaces in a line. Lines join with newlines.
    Accepts the same options as `words`."
   ([doc] (text doc {}))
   ([doc opts]

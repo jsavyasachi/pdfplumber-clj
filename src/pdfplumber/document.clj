@@ -1,6 +1,6 @@
 (ns pdfplumber.document
-  "Document loading and the error model. The PDFBox parse boundary lives here;
-   higher namespaces work with the returned PDDocument handle."
+  "Load documents and handle errors. PDFBox parses documents here. Higher
+   namespaces use the returned PDDocument handle."
   (:import [org.apache.pdfbox Loader]
            [org.apache.pdfbox.pdmodel PDDocument PDDocumentInformation PDPage]
            [org.apache.pdfbox.pdmodel.common PDRectangle]
@@ -17,12 +17,12 @@
    (throw (ex-info msg (assoc data :pdfplumber/error error) cause))))
 
 (defn open-pdf
-  "Open a PDF and return a PDFBox `PDDocument` handle. Accepts a path `String`,
+  "Open a PDF and return a PDFBox `PDDocument` handle. It accepts a path `String`,
    `java.io.File`, `byte[]`, or `java.io.InputStream` (an already-open
-   `PDDocument` is returned as-is). An optional `{:password string}` options map
-   supplies the password for an encrypted PDF. The password is ignored when
-   `source` is already an open `PDDocument`. The caller owns closing the result;
-   prefer `pdfplumber.core/with-pdf`.
+   `PDDocument` is returned as-is). An optional `{:password string}` map supplies
+   the password for an encrypted PDF. The function ignores the password when
+   `source` is an open `PDDocument`. The caller closes the result. Use
+   `pdfplumber.core/with-pdf`.
 
    Throws `ex-info` carrying `:pdfplumber/error`:
    `:invalid-input` (unsupported source or missing file),
@@ -78,7 +78,7 @@
   "Document metadata as a map. Always includes `:page-count`; document-info
    fields (`:title` `:author` `:subject` `:keywords` `:creator` `:producer`
    `:creation-date` `:modification-date`) are included only when present. Dates
-   are ISO-8601 strings."
+   use ISO-8601 strings."
   [^PDDocument doc]
   (let [info ^PDDocumentInformation (.getDocumentInformation doc)]
     (into {:page-count (.getNumberOfPages doc)}

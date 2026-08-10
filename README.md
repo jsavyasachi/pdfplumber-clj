@@ -5,14 +5,14 @@
 [![test](https://github.com/jsavyasachi/pdfplumber-clj/actions/workflows/test.yml/badge.svg)](https://github.com/jsavyasachi/pdfplumber-clj/actions/workflows/test.yml)
 [![parity](https://github.com/jsavyasachi/pdfplumber-clj/actions/workflows/parity.yml/badge.svg)](https://github.com/jsavyasachi/pdfplumber-clj/actions/workflows/parity.yml)
 
-PDF extraction and inspection for Clojure, built on [Apache PDFBox](https://pdfbox.apache.org).
-The Clojure counterpart to Python's [`pdfplumber`](https://github.com/jsvine/pdfplumber):
-pull text, tables, and geometry out of digitally generated PDFs as plain,
+Extract and inspect PDFs in Clojure with [Apache PDFBox](https://pdfbox.apache.org).
+This library is the Clojure counterpart to Python's [`pdfplumber`](https://github.com/jsvine/pdfplumber).
+It extracts text, tables, and geometry from digitally generated PDFs as plain,
 EDN/JSON-friendly data.
 
-**[Try it live](https://savyasachi.dev/tools/pdf-tables)** - a hosted table extractor over this
-library: upload a PDF to see its detected table regions drawn on each page, tune the detection
-strategy, and download the rows as CSV or JSON. Files are processed in memory and never stored.
+**[Try it live](https://savyasachi.dev/tools/pdf-tables)** - a hosted table extractor for this
+library. Upload a PDF to view detected table regions on each page. Set the detection
+strategy. Download the rows as CSV or JSON. The service processes files in memory and does not store them.
 
 ## Stack
 
@@ -21,11 +21,11 @@ strategy, and download the rows as CSV or JSON. Files are processed in memory an
 
 ## Status
 
-Stable (`1.0.0`). Data shapes are settled and follow semantic versioning:
-breaking changes to the returned maps require a major bump.
+Stable (`1.0.0`). Data shapes follow semantic versioning. A breaking change to a
+returned map requires a major bump.
 
-Covers the full Python pdfplumber extraction surface (text, words, chars,
-objects, tables, crop), plus:
+Covers the Python pdfplumber extraction surface for text, words, chars,
+objects, tables, and crop. It also provides:
 
 - **Streaming** extraction: reducible/transducer, page-at-a-time
 - **Visual debugging**: page render + overlays
@@ -33,11 +33,10 @@ objects, tables, crop), plus:
 - **Document metadata**: forms, outline, attachments, permissions, signatures
 - **CLI**: CSV/JSON object dump
 
-Parity is measured, not asserted. The `parity` workflow runs weekly: it fetches
-the upstream `jsvine/pdfplumber` test corpus, extracts every PDF with Python
-pdfplumber to build a baseline, and compares this library against it on page
-count, text similarity, and word count. The corpus is not committed, so run it
-locally with `dev/fetch-corpus.sh` then `dev/gen_golden.py`.
+The `parity` workflow measures parity weekly. It fetches the upstream
+`jsvine/pdfplumber` test corpus. It extracts each PDF with Python pdfplumber to
+make a baseline. It compares page count, text similarity, and word count. The
+repository does not commit the corpus. Run `dev/fetch-corpus.sh`, then `dev/gen_golden.py`.
 
 ## Install
 
@@ -76,9 +75,9 @@ Requires JDK 17+.
 
 ## Streaming extraction
 
-The `reducible-*` functions on `pdfplumber.core` return `IReduceInit` streams
-that extract one page at a time. Transducers terminate early without extracting
-later pages. They are re-exported from `pdfplumber.reducible`.
+The `reducible-*` functions in `pdfplumber.core` return `IReduceInit` streams.
+They extract one page at a time. Transducers can stop early without extracting
+later pages. `pdfplumber.reducible` also exports these functions.
 
 ```clojure
 (into []
@@ -90,9 +89,9 @@ later pages. They are re-exported from `pdfplumber.reducible`.
 
 ## Tables
 
-`extract-tables` returns every independent table region on a page, ordered
-top-to-bottom then left-to-right. `extract-table` returns only the first region.
-Configure each axis independently with `:vertical-strategy` and
+`extract-tables` returns independent table regions on a page. It orders them
+top-to-bottom, then left-to-right. `extract-table` returns the first region.
+Set each axis with `:vertical-strategy` and
 `:horizontal-strategy`; each accepts `:lines`, `:lines-strict`, `:text`, or
 `:explicit`. The legacy `:strategy` option sets both axes.
 
@@ -111,7 +110,7 @@ Configure each axis independently with `:vertical-strategy` and
 ```
 
 Use `:explicit-horizontal-lines` with `:horizontal-strategy :explicit`.
-Explicit lines may be coordinates or maps with bounded line coordinates.
+Explicit lines can be coordinates or maps with bounded line coordinates.
 
 ## Tables as data
 
@@ -123,15 +122,15 @@ header-keyed maps.
     pdf/table->maps)
 ```
 
-The result feeds `tech.v3.dataset/->dataset` directly with no added dependency.
-Use `:keywordize? true` for keyword keys. Set `:header` to `:first` (the
-default), an explicit key vector, or `false` for integer keys.
+The result can go directly to `tech.v3.dataset/->dataset` with no added dependency.
+Use `:keywordize? true` for keyword keys. Set `:header` to `:first`, the
+default, an explicit key vector, or `false` for integer keys.
 
 ## Visual debugging
 
-`pdfplumber.core/to-image` renders a page through PDFBox and returns a
-`PageImage`; `pdfplumber.core/page-image?` identifies one. Overlay, reset/copy,
-save, and display verbs live in `pdfplumber.image`.
+`pdfplumber.core/to-image` renders a page with PDFBox and returns a `PageImage`.
+`pdfplumber.core/page-image?` identifies a `PageImage`. `pdfplumber.image` has
+functions to overlay, reset, copy, save, and display images.
 
 ```clojure
 (require '[pdfplumber.image :as image])
@@ -156,8 +155,8 @@ More verbs in `pdfplumber.image`:
 
 ## Structure tree
 
-`structure-tree` returns a tagged PDF's nested logical structure.
-`page-structure-tree` restricts it to a 1-based page. Untagged PDFs return `[]`.
+`structure-tree` returns the nested logical structure of a tagged PDF.
+`page-structure-tree` limits it to a 1-based page. Untagged PDFs return `[]`.
 
 ```clojure
 (pdf/structure-tree doc)
@@ -166,9 +165,9 @@ More verbs in `pdfplumber.image`:
 
 ## Form fields
 
-`form-fields` returns terminal AcroForm field maps with values, constraints,
-options, and first-widget geometry. `field-values` returns the name-to-value
-map.
+`form-fields` returns terminal AcroForm field maps. They include values,
+constraints, options, and first-widget geometry. `field-values` returns the
+name-to-value map.
 
 ```clojure
 (pdf/form-fields doc)
@@ -215,9 +214,9 @@ decoded `:bytes`.
 
 ## Signatures
 
-`signatures` surfaces signature metadata plus a `:covers-whole-document?`
-integrity signal. `signed?` reports signature-dictionary presence. These APIs do
-not validate cryptographic signatures, certificates, or trust.
+`signatures` returns signature metadata and a `:covers-whole-document?`
+integrity signal. `signed?` reports the presence of a signature dictionary.
+These APIs do not validate cryptographic signatures, certificates, or trust.
 
 ```clojure
 (pdf/signatures doc)
@@ -240,8 +239,8 @@ clojure -M -m pdfplumber.cli statement.pdf \
 
 ## Images
 
-`images` returns drawn image objects; they also appear as `:image` entries in
-`objects`. Each carries:
+`images` returns drawn image objects. They also appear as `:image` entries in
+`objects`. Each object has:
 
 - `:bbox`, plus pixel `:width` and `:height`
 - `:colorspace` and `:bits`
@@ -256,9 +255,9 @@ Decoded PNG bytes are omitted by default.
 
 ## Coordinate system
 
-Public coordinates use a **top-left origin** (matching `pdfplumber`), with bounding
-boxes as `[x0 top x1 bottom]` in PDF user-space points. PDFBox's native bottom-left
-coordinates are converted internally.
+Public coordinates use a **top-left origin**, like `pdfplumber`. Bounding boxes
+are `[x0 top x1 bottom]` in PDF user-space points. The library converts PDFBox's
+native bottom-left coordinates.
 
 ## Scope
 
@@ -272,13 +271,13 @@ In:
 - Command-line CSV/JSON export
 - Deterministic plain-data output
 
-Not in scope (same as Python pdfplumber): PDF generation, OCR, scanned/image
-PDFs, and layout ML.
+Not in scope, as in Python pdfplumber: PDF generation, OCR, scanned/image PDFs,
+and layout ML.
 
 Two caveats:
 
 - Signature APIs do not perform cryptographic, certificate, or trust validation.
-- The table `:text` strategy is heuristic, for digitally generated PDFs.
+- The table `:text` strategy is heuristic for digitally generated PDFs.
 
 ## License
 

@@ -1,11 +1,11 @@
 (ns pdfplumber.page
-  "Composable derived-page views for crop, bbox, outside, and predicate filters."
+  "Composable page views for crop, bbox, outside, and predicate filters."
   (:refer-clojure :exclude [filter])
   (:require [pdfplumber.geometry :as g])
   (:import [org.apache.pdfbox.pdmodel PDDocument]))
 
 (defn page-view?
-  "True when `x` is a derived page view."
+  "True if `x` is a derived page view."
   [x]
   (boolean (and (map? x) (::view x))))
 
@@ -41,8 +41,8 @@
      :bbox (or bbox base-bbox)}))
 
 (defn crop
-  "Crop a page view to `bbox`, clipping partial objects. With `:relative true`,
-   bbox coordinates are offsets from the parent view's top-left corner."
+  "Crop a page view to `bbox`. It clips partial objects. With `:relative true`,
+   bbox coordinates are offsets from the top-left corner of the parent view."
   ([source bbox] (crop source bbox {}))
   ([source bbox {:keys [relative] :as opts}]
    (let [[doc merged _ parent-bbox] (source-parts source opts)
@@ -76,7 +76,7 @@
    (derived-view source opts {:kind :outside :bbox bbox} nil)))
 
 (defn filter
-  "Keep objects for which `pred` returns truthy."
+  "Keep objects when `pred` returns truthy."
   ([source pred] (filter source pred {}))
   ([source pred opts]
    (derived-view source opts {:kind :predicate :pred pred} nil)))
@@ -105,7 +105,7 @@
         (assoc :doctop (+ doctop-offset nt))))))
 
 (defn apply-view
-  "Apply derived-view operations in order to extracted object maps."
+  "Apply derived-view operations to extracted object maps in order."
   [objects operations]
   (reduce (fn [items {:keys [kind bbox pred]}]
             (case kind
@@ -117,7 +117,7 @@
           (vec objects) operations))
 
 (defn resolve-source
-  "Normalize a document-or-view plus extraction options into `[doc opts]`."
+  "Normalize a document-or-view and extraction options to `[doc opts]`."
   [source opts]
   (if (page-view? source)
     [(:document source)

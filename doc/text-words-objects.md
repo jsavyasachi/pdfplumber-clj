@@ -6,8 +6,8 @@ Require the public API namespace:
 (require '[pdfplumber.core :as pdf])
 ```
 
-Text and object functions accept either a document handle or a cropped page view
-from `crop-page`.
+Text and object functions accept a document handle or a cropped page view from
+`crop-page`.
 
 ## Characters
 
@@ -88,8 +88,8 @@ Options:
 ;; => "Hello PDF"
 ```
 
-It accepts the same options as `words`. Words are joined by spaces within a line.
-Lines are joined with newline characters.
+It accepts the same options as `words`. It joins words with spaces in a line.
+It joins lines with newline characters.
 
 ## Graphical Objects
 
@@ -132,11 +132,12 @@ Options:
 - `:types` - a set of object types to keep, for example `#{:line}`.
 - `:bbox` - keep objects whose bounding boxes intersect the given bbox.
 
-Only painted paths yield objects. Clip-only and no-paint paths are discarded.
+Only painted paths produce objects. The library discards clip-only and no-paint
+paths.
 
 ## Cropping
 
-`crop-page` creates a lightweight cropped view:
+`crop-page` creates a cropped view:
 
 ```clojure
 (pdf/with-pdf [doc "statement.pdf"]
@@ -148,21 +149,21 @@ Only painted paths yield objects. Clip-only and no-paint paths are discarded.
      :objects (pdf/objects view)}))
 ```
 
-The view does not copy page data and does not translate coordinates. It resolves
-to extraction options:
+The view does not copy page data or translate coordinates. It uses these
+extraction options:
 
 ```clojure
 {:page 1
  :bbox [70.0 80.0 110.0 100.0]}
 ```
 
-Explicit options passed to an extraction call override the view's values:
+Explicit options in an extraction call override the view values:
 
 ```clojure
 (pdf/words view {:page 2})
 ```
 
-Coordinate behavior in cropped views:
+Coordinate behavior for cropped views:
 
 - text filtering keeps characters whose bbox centers are inside the crop bbox
 - object filtering keeps objects whose bboxes intersect the crop bbox
