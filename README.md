@@ -90,8 +90,9 @@ later pages. `pdfplumber.reducible` also exports these functions.
 
 ## Tables
 
-`extract-tables` returns independent table regions on a page. It orders them
-top-to-bottom, then left-to-right. `extract-table` returns the first region.
+`extract-tables` returns independent table regions with more than one cell. It
+orders them top-to-bottom, then left-to-right. `extract-table` returns the first
+region.
 Set each axis with `:vertical-strategy` and
 `:horizontal-strategy`; each accepts `:lines`, `:lines-strict`, `:text`, or
 `:explicit`. The legacy `:strategy` option sets both axes.

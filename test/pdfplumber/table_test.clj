@@ -181,6 +181,11 @@
     (is (= [] (pdf/extract-tables d {:page 1})))
     (is (nil? (pdf/extract-table d {:page 1})))))
 
+(deftest single-cell-candidates-are-not-tables
+  (pdf/with-pdf [d (fix/ruled-pdf)]
+    (is (= [] (pdf/extract-tables d {:page 1})))
+    (is (nil? (pdf/extract-table d {:page 1})))))
+
 (deftest complete-settings-and-finder
   (pdf/with-pdf [d (fix/partially-ruled-table-pdf)]
     (testing "explicit lines are additive to a non-explicit strategy"

@@ -366,6 +366,7 @@
         tolerance (max x-tolerance y-tolerance)
         cells (grid-cells edges x-tolerance y-tolerance)]
     (->> (cell-components cells tolerance)
+         (filter #(> (count %) 1))
          (map (fn [component]
                 (let [cells (vec (sort-by (juxt second first) component))
                       bbox (component-bbox cells)
@@ -410,8 +411,8 @@
 
 (defn extract-tables
   "Detect and extract every independent table on a page, ordered top-to-bottom
-   then left-to-right. This returns one table per connected cell region, not one
-   page-wide bounding grid.
+   then left-to-right. This returns one table per connected region with more
+   than one cell, not one page-wide bounding grid.
 
    Options include `:vertical-strategy` and `:horizontal-strategy`, each one of
    `:lines`, `:lines-strict`, `:text`, or `:explicit`; corresponding
