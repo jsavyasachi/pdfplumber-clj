@@ -78,15 +78,15 @@
                        (reduce max 0 (map count (:rows %)))])
                   tables))
       (is (= [["FooCol1" "FooCol2" "FooCol3"]
-              ["" "" ""]
-              ["" "" ""]
-              ["" "" ""]
+              ["Foo4" "Foo5" "Foo6"]
+              ["Foo7" "Foo8" "Foo9"]
+              ["Foo10" "Foo11" "Foo12"]
               ["" "" ""]]
              (row-texts (first tables))))
       (is (= [["BarCol1" "BarCol2" "BarCol3"]
-              ["" "" ""]
-              ["" "" ""]
-              ["" "" ""]
+              ["Bar4" "Bar5" "Bar6"]
+              ["Bar7" "Bar8" "Bar9"]
+              ["Bar10" "Bar11" "Bar12"]
               ["" "" ""]]
              (row-texts (second tables)))))))
 

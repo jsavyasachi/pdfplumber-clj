@@ -239,17 +239,24 @@
   "Single page with two side-by-side ruled 5x3 tables. Returns byte[]."
   ^bytes []
   (with-open [doc (PDDocument.)]
-    (let [page (PDPage. PDRectangle/LETTER)]
+    (let [page (PDPage. (PDRectangle. (float 0) (float 200)
+                                      (float 841.8898) (float 585.2756)))]
       (.addPage doc page)
       (with-open [cs (PDPageContentStream. doc page)]
         (.setLineWidth cs (float 1.0))
         (doseq [{:keys [xs labels]}
                 [{:xs [60 120 180 240]
                   :labels [["FooCol1" 68 698] ["FooCol2" 128 698]
-                           ["FooCol3" 188 698]]}
+                           ["FooCol3" 188 698]
+                           ["Foo4" 68 668] ["Foo5" 128 668] ["Foo6" 188 668]
+                           ["Foo7" 68 638] ["Foo8" 128 638] ["Foo9" 188 638]
+                           ["Foo10" 68 608] ["Foo11" 128 608] ["Foo12" 188 608]]}
                  {:xs [360 420 480 540]
                   :labels [["BarCol1" 368 698] ["BarCol2" 428 698]
-                           ["BarCol3" 488 698]]}]]
+                           ["BarCol3" 488 698]
+                           ["Bar4" 368 668] ["Bar5" 428 668] ["Bar6" 488 668]
+                           ["Bar7" 368 638] ["Bar8" 428 638] ["Bar9" 488 638]
+                           ["Bar10" 368 608] ["Bar11" 428 608] ["Bar12" 488 608]]}]]
           (doseq [y [720 690 660 630 600 570]]
             (.moveTo cs (float (first xs)) (float y))
             (.lineTo cs (float (last xs)) (float y))

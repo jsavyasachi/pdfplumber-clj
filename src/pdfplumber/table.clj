@@ -45,11 +45,10 @@
                {:x (- page-height y) :top x0 :bottom x1}) h)}
     {:h h :v v}))
 
-(defn- source-edges [objs strict? rotation page-height]
+(defn- source-edges [objs strict? rotation page-height page-y0]
   (let [lines (filter #(= :line (:type %)) objs)
         rects (if strict? [] (filter #(= :rect (:type %)) objs))]
-    (rotate-edges
-     {:h (concat
+    (let [edges {:h (concat
           (for [line lines :when (= :horizontal (:orientation line))]
             {:y (:top line) :x0 (:x0 line) :x1 (:x1 line)})
           (mapcat (fn [rect]
@@ -62,8 +61,13 @@
           (mapcat (fn [rect]
                     [{:x (:x0 rect) :top (:top rect) :bottom (:bottom rect)}
                      {:x (:x1 rect) :top (:top rect) :bottom (:bottom rect)}])
-                  rects))}
-     rotation page-height)))
+                  rects))}]
+      (rotate-edges
+       {:h (map #(update % :y + page-y0) (:h edges))
+        :v (map #(-> %
+                     (update :top + page-y0)
+                     (update :bottom + page-y0)) (:v edges))}
+       rotation page-height))))
 
 (defn- text-rows [words tol]
   (->> (sort-by :top words)
@@ -172,8 +176,9 @@
         page (.getPage doc (dec (int (or (:page opts) 1))))
         rotation (mod (.getRotation page) 360)
         page-height (double (.getHeight (.getMediaBox page)))
-        line-edges (source-edges objs false rotation page-height)
-        strict-edges (source-edges objs true rotation page-height)
+        page-y0 (double (.getLowerLeftY (.getMediaBox page)))
+        line-edges (source-edges objs false rotation page-height page-y0)
+        strict-edges (source-edges objs true rotation page-height page-y0)
         vertical-base (case (:vertical-strategy opts)
                    :lines (:v line-edges)
                    :lines-strict (:v strict-edges)
