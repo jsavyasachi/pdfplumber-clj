@@ -72,6 +72,21 @@
           (.endText cs))))
     (->bytes doc)))
 
+(defn reflected-text-pdf
+  "Single page with text painted through a horizontal reflection."
+  ^bytes []
+  (with-open [doc (PDDocument.)]
+    (let [page (PDPage. PDRectangle/LETTER)]
+      (.addPage doc page)
+      (with-open [cs (PDPageContentStream. doc page)]
+        (.transform cs (Matrix. -1.0 0.0 0.0 1.0 540.0 0.0))
+        (.beginText cs)
+        (.setFont cs (helvetica) 12.0)
+        (.newLineAtOffset cs (float 72.0) (float 700.0))
+        (.showText cs "The")
+        (.endText cs)))
+    (->bytes doc)))
+
 (defn duplicate-text-pdf
   "Single page with the same glyph painted twice at nearby positions."
   ^bytes []

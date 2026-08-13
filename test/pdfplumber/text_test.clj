@@ -84,6 +84,10 @@
     (testing "text flow preserves content-stream order"
       (is (= "right" (:text (first (pdf/words d {:use-text-flow true}))))))))
 
+(deftest character-direction-uses-text-matrix
+  (pdf/with-pdf [d (fix/reflected-text-pdf)]
+    (is (false? (:upright (first (pdf/chars d)))))))
+
 (deftest text-maps-and-layout
   (pdf/with-pdf [d (fix/advanced-text-pdf)]
     (let [extract-text-var (ns-resolve 'pdfplumber.core 'extract-text)
