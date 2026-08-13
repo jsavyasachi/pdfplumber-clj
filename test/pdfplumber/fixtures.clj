@@ -87,6 +87,21 @@
           (.endText cs))))
     (->bytes doc)))
 
+(defn duplicate-chain-text-pdf
+  "Single page with the same glyph painted at three adjacent positions."
+  ^bytes []
+  (with-open [doc (PDDocument.)]
+    (let [page (PDPage. PDRectangle/LETTER)]
+      (.addPage doc page)
+      (with-open [cs (PDPageContentStream. doc page)]
+        (doseq [x [72.0 72.9 73.8]]
+          (.beginText cs)
+          (.setFont cs (helvetica) 12.0)
+          (.newLineAtOffset cs (float x) (float 700.0))
+          (.showText cs "A")
+          (.endText cs))))
+    (->bytes doc)))
+
 (defn ruled-pdf
   "Single US-Letter page with a horizontal rule (y=700, x 72..540), a vertical
    rule (x=72, y 500..700), and a stroked rectangle (x=100 y=400 w=200 h=100),

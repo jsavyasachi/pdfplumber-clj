@@ -84,6 +84,7 @@
                                                        (doctop-offset doc p)
                                                        use-text-flow)]
     (.setSortByPosition stripper (not use-text-flow))
+    (.setSuppressDuplicateOverlappingText stripper false)
     (.setStartPage stripper (int p))
     (.setEndPage stripper (int p))
     (.getText stripper doc)
@@ -337,22 +338,36 @@
          matches)))))
 
 (defn dedupe-char-records
-  "Remove duplicate chars within positional `:tolerance`. It compares `:text`
-   plus configurable `:compare-attrs` (default fontname, size, upright)."
+  "Remove duplicate chars within positional `:tolerance`."
   ([char-records] (dedupe-char-records char-records {}))
-  ([char-records {:keys [tolerance compare-attrs extra-attrs]
-                  :or {tolerance 1.0}}]
-   (let [attrs (vec (distinct (cons :text (or compare-attrs extra-attrs
-                                                [:fontname :size :upright]))))
-         same? (fn [a b]
-                 (and (every? #(= (get a %) (get b %)) attrs)
-                      (<= (Math/abs (- (double (:x0 a)) (double (:x0 b))))
-                          tolerance)
-                      (<= (Math/abs (- (double (:doctop a)) (double (:doctop b))))
-                          tolerance)))]
-     (reduce (fn [kept c]
-               (if (some #(same? % c) kept) kept (conj kept c)))
-             [] char-records))))
+  ([char-records opts]
+   (let [opts (normalize-options opts)
+         tolerance (double (or (:tolerance opts) 1.0))
+         extra-attrs (cond
+                       (contains? opts :extra-attrs) (:extra-attrs opts)
+                       (contains? opts :compare-attrs) (:compare-attrs opts)
+                       :else [:fontname :size])
+         attrs (vec (distinct (concat [:upright :text] extra-attrs)))
+         cluster (fn [records attr]
+                   (reduce (fn [groups record]
+                             (if (and (seq groups)
+                                      (<= (- (double (get record attr))
+                                             (double (get (peek (peek groups)) attr)))
+                                          tolerance))
+                               (conj (pop groups) (conj (peek groups) record))
+                               (conj groups [record])))
+                           []
+                           (sort-by attr records)))
+         indexed (map-indexed vector char-records)
+         groups (vals (group-by (fn [[_ record]] (mapv #(get record %) attrs)) indexed))
+         deduped (mapcat (fn [group]
+                           (mapcat #(cluster % :x0)
+                                   (cluster (map second group) :doctop)))
+                         groups)]
+     (->> deduped
+          (map #(first (sort-by (juxt :doctop :x0) %)))
+          (sort-by #(.indexOf ^java.util.List (vec char-records) %))
+          vec))))
 
 (defn dedupe-chars
   "Extract chars and remove positional duplicates. Extraction and comparison
