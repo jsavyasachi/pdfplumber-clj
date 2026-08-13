@@ -318,8 +318,8 @@
 
 (defn extract-tables
   "Detect and extract every independent table on a page, ordered top-to-bottom
-   then left-to-right. Unlike versions through 0.1.2, this returns one table per
-   connected cell region instead of at most one page-wide bounding grid.
+   then left-to-right. This returns one table per connected cell region, not one
+   page-wide bounding grid.
 
    Options include `:vertical-strategy` and `:horizontal-strategy`, each one of
    `:lines`, `:lines-strict`, `:text`, or `:explicit`; corresponding
