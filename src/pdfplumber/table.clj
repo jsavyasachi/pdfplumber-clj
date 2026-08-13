@@ -2,7 +2,8 @@
   "Detect and extract tables from ruling lines, text alignments, or
    caller-supplied explicit lines. Public coordinates use
    `[x0 top x1 bottom]` in a top-left origin."
-  (:require [clojure.string :as str]
+  (:require [clojure.set :as set]
+            [clojure.string :as str]
             [pdfplumber.geometry :as g]
             [pdfplumber.objects :as objects]
             [pdfplumber.text :as text])
@@ -23,19 +24,31 @@
 
 (def ^:private strategies #{:lines :lines-strict :text :explicit})
 
+(def ^:private coordinate-source-tolerance
+  "Tolerance for coordinate differences between PDFBox and pdfminer."
+  9.765625009094947e-5)
+
 (defn- clusters [vals tol]
-  (->> (sort vals)
-       (reduce (fn [acc v]
-                 (if (and (seq acc) (<= (- v (peek (peek acc))) tol))
-                   (conj (pop acc) (conj (peek acc) v))
-                   (conj acc [v])))
-               [])))
+  (let [vals (vec vals)
+        tolerance (+ (double tol)
+                     (if (pos? (double tol))
+                       coordinate-source-tolerance
+                       0.0))]
+    (->> (sort vals)
+         (reduce (fn [acc v]
+                   (if (and (seq acc)
+                            (<= (- v (peek (peek acc))) tolerance))
+                     (conj (pop acc) (conj (peek acc) v))
+                     (conj acc [v])))
+                 []))))
 
-(defn- snap-positions [vals tol]
-  (mapv #(/ (reduce + %) (count %)) (clusters vals tol)))
-
-(defn- snap-to [positions tol v]
-  (or (first (filter #(<= (Math/abs (- (double v) (double %))) tol) positions)) v))
+(defn- snap-values [vals tol]
+  (let [lookup (into {}
+                     (for [group (clusters vals tol)
+                           :let [mean (/ (reduce + group) (count group))]
+                           value group]
+                       [value mean]))]
+    (mapv #(get lookup % %) vals)))
 
 (defn- rotate-edges [{:keys [h v]} rotation page-height]
   (if (= rotation 90)
@@ -198,10 +211,10 @@
         edge-min-length (:edge-min-length opts)
         h (filter #(>= (edge-length :h %) edge-min-length-prefilter) h)
         v (filter #(>= (edge-length :v %) edge-min-length-prefilter) v)
-        ys (snap-positions (map :y h) snap-y)
-        xs (snap-positions (map :x v) snap-x)
-        h (map #(assoc % :y (snap-to ys snap-y (:y %))) h)
-        v (map #(assoc % :x (snap-to xs snap-x (:x %))) v)
+        ys (snap-values (map :y h) snap-y)
+        xs (snap-values (map :x v) snap-x)
+        h (map #(assoc %1 :y %2) h ys)
+        v (map #(assoc %1 :x %2) v xs)
         h (join-runs h :y :x0 :x1 join-x)
         v (join-runs v :x :top :bottom join-y)]
     {:h (filterv #(>= (- (double (:x1 %)) (:x0 %)) edge-min-length) h)
@@ -291,25 +304,20 @@
                                          x-tolerance y-tolerance)]
                 [x0 top x1 bottom])))))))
 
-(defn- ranges-overlap? [a0 a1 b0 b1 tol]
-  (<= (max a0 b0) (+ (min a1 b1) tol)))
+(defn- cell-corners [[x0 top x1 bottom]]
+  #{[x0 top] [x0 bottom] [x1 top] [x1 bottom]})
 
-(defn- adjacent-cells? [[ax0 at ax1 ab] [bx0 bt bx1 bb] tol]
-  (or (and (ranges-overlap? at ab bt bb tol)
-           (or (<= (Math/abs (- (double ax1) bx0)) tol)
-               (<= (Math/abs (- (double bx1) ax0)) tol)))
-      (and (ranges-overlap? ax0 ax1 bx0 bx1 tol)
-           (or (<= (Math/abs (- (double ab) bt)) tol)
-               (<= (Math/abs (- (double bb) at)) tol)))))
-
-(defn- cell-components [cells tolerance]
+(defn- cell-components [cells _tolerance]
   (loop [remaining (set cells) components []]
     (if-let [seed (first remaining)]
       (let [component
             (loop [found #{seed} frontier [seed]]
               (if-let [cell (peek frontier)]
-                (let [neighbors (filter #(and (not (contains? found %))
-                                              (adjacent-cells? cell % tolerance))
+                (let [corners (cell-corners cell)
+                      neighbors (filter #(and (not (contains? found %))
+                                              (seq (set/intersection
+                                                    corners
+                                                    (cell-corners %))))
                                         remaining)]
                   (recur (into found neighbors)
                          (into (pop frontier) neighbors)))
