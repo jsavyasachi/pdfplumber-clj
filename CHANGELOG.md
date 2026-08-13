@@ -2,6 +2,13 @@
 
 All notable changes to this project are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.2.0] - 2026-08-13
+
+### Fixed
+- A connected region of one cell is not a table. `extract-tables` and
+  `find-tables` returned every connected region, so an isolated ruled box became
+  a table. A page of vector artwork with no table produced tables.
+
 ## [1.1.0] - 2026-08-13
 
 ### Fixed
