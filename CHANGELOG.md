@@ -2,6 +2,27 @@
 
 All notable changes to this project are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.1.0] - 2026-08-13
+
+### Fixed
+- Path objects are classified per subpath. A subpath of two points is one `:line`,
+  a closed axis-aligned subpath of four segments is one `:rect`, and every other
+  painted subpath is one `:curve`. A multi-segment polyline became one `:line` per
+  segment before, and a bezier became one `:curve` per command.
+- Curve points hold the end point of each path command. Bezier control points are
+  not path points, and a closed subpath ends at its start point.
+- Table edges are derived from curve points, so a table drawn as a polyline is
+  found. Strict line detection still uses `:line` objects alone.
+- `:edge-min-length-prefilter` is a minimum length in points, default 1, applied
+  to the raw edges before snapping. It was a switch that reused
+  `:edge-min-length`, so short edges reached table detection and produced tables
+  on pages of vector artwork. A boolean is still accepted: `false` means 0 and
+  `true` means 1.
+
+### Changed
+- Object extraction ignores table options. The object list no longer depends on
+  `:vertical-strategy` or `:horizontal-strategy`.
+
 ## [1.0.2] - 2026-08-13
 
 ### Fixed
