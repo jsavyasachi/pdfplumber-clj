@@ -62,8 +62,9 @@ jobs:
         if: github.ref_type == 'tag'
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
-          awk -v v="$VERSION" '
-            $0 ~ "^## \\[" v "\\]" {found=1; next}
+          PATTERN=$(printf '%s' "$VERSION" | sed 's/\./\\./g')
+          awk -v p="$PATTERN" '
+            $0 ~ "^## \\[" p "\\]" {found=1; next}
             found && /^## / {exit}
             found {print}
           ' CHANGELOG.md > release-notes.md
