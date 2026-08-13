@@ -16,7 +16,7 @@
 
 (def ^:private golden-file (io/file "corpus/golden.json"))
 (def ^:private corpus-dir "corpus/pdfplumber")
-(def ^:private table-cell-recall-threshold 0.75)
+(def ^:private table-cell-recall-threshold 0.90)
 
 (defn- tokens [s]
   (set (remove str/blank? (str/split (str/lower-case (or s "")) #"\s+"))))
