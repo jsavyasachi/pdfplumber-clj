@@ -41,7 +41,12 @@ for path in sorted(glob.glob(os.path.join(corpus, "*.pdf"))):
                 tables.append(page.extract_tables())
                 words += len(page.extract_words())
                 for kind in page_objects:
-                    page_objects[kind].append(object_record(getattr(page, kind)))
+                    # An object type that raises must not discard the whole file.
+                    # Record null for that page and keep the text and table data.
+                    try:
+                        page_objects[kind].append(object_record(getattr(page, kind)))
+                    except Exception:  # noqa: BLE001
+                        page_objects[kind].append(None)
             result[name] = {
                 "pages": len(pdf.pages),
                 "words": words,

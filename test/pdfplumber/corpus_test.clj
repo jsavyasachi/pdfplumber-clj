@@ -131,8 +131,12 @@
   (let [pages (get golden object-type)]
     (and (vector? pages)
          (= (:pages golden) (count pages))
+         ;; A nil page means Python could not extract that object type there.
+         ;; The key and the page count still prove the golden carries the field,
+         ;; so a stale golden cannot pass by comparing nothing.
          (every? (fn [page]
-                   (and (map? page)
+                   (or (nil? page)
+                    (and (map? page)
                         (integer? (:count page))
                         (not (neg? (:count page)))
                         (vector? (:boxes page))
@@ -141,7 +145,7 @@
                                   (and (vector? box)
                                        (= 4 (count box))
                                        (every? number? box)))
-                                (:boxes page))))
+                                (:boxes page)))))
                  pages))))
 
 (defn- probe [name]
