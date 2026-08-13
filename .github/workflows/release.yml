@@ -39,6 +39,20 @@ jobs:
             exit 1
           fi
 
+      - name: Verify tag matches project.clj version
+        if: github.ref_type == 'tag'
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          PROJ=$(sed -n 's/.*defproject [^ ]* "\([^"]*\)".*/\1/p' project.clj)
+          if [ -z "$PROJ" ]; then
+            PROJ=$(sed -n 's/.*(def version "\([^"]*\)").*/\1/p' project.clj)
+          fi
+          echo "tag=$TAG project.clj=$PROJ"
+          if [ -z "$PROJ" ] || [ "$TAG" != "$PROJ" ]; then
+            echo "::error::tag v$TAG does not match project.clj version $PROJ"
+            exit 1
+          fi
+
       - name: Verify README install coordinate matches version
         if: github.ref_type == 'tag'
         run: |
