@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Generate parity golden from Python pdfplumber over a corpus directory.
 
-Emits JSON {filename: {pages, words, text, error}} for each *.pdf. Used by the
+Emits JSON {filename: {pages, words, text, tables, error}} for each *.pdf. Used by the
 opt-in :corpus parity test. Run inside a venv with pdfplumber installed:
 
     .venv/bin/python dev/gen_golden.py [corpus-dir] [out.json]
@@ -21,14 +21,16 @@ for path in sorted(glob.glob(os.path.join(corpus, "*.pdf"))):
     name = os.path.basename(path)
     try:
         with pdfplumber.open(path) as pdf:
-            texts, words = [], 0
+            texts, tables, words = [], [], 0
             for page in pdf.pages:
                 texts.append(page.extract_text() or "")
+                tables.extend(page.extract_tables())
                 words += len(page.extract_words())
             result[name] = {
                 "pages": len(pdf.pages),
                 "words": words,
                 "text": "\n".join(texts),
+                "tables": tables,
                 "error": None,
             }
     except Exception as e:  # noqa: BLE001 - record, don't abort the run

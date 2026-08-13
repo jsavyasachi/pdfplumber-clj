@@ -35,7 +35,7 @@ objects, tables, and crop. It also provides:
 
 The `parity` workflow measures parity weekly. It fetches the upstream
 `jsvine/pdfplumber` test corpus. It extracts each PDF with Python pdfplumber to
-make a baseline. It compares page count, text similarity, and word count. The
+make a baseline. It compares page count, text similarity, word count, and table extraction. The
 repository does not commit the corpus. Run `dev/fetch-corpus.sh`, then `dev/gen_golden.py`.
 
 ## Install
