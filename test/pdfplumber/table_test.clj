@@ -90,6 +90,20 @@
               ["" "" ""]]
              (row-texts (second tables)))))))
 
+(deftest side-by-side-ruled-tables-with-offset-mediabox
+  (pdf/with-pdf [d (fix/side-by-side-tables-offset-pdf)]
+    (let [cells (->> (pdf/extract-tables d {:page 1})
+                     (mapcat :rows)
+                     (mapcat identity)
+                     (map :text)
+                     (remove clojure.string/blank?))]
+      (is (= 24 (count cells)))
+      (is (= #{"FooCol1" "FooCol2" "FooCol3" "Foo4" "Foo5" "Foo6"
+               "Foo7" "Foo8" "Foo9" "Foo10" "Foo11" "Foo12"
+               "BarCol1" "BarCol2" "BarCol3" "Bar4" "Bar5" "Bar6"
+               "Bar7" "Bar8" "Bar9" "Bar10" "Bar11" "Bar12"}
+             (set cells))))))
+
 (deftest per-axis-text-strategies
   (pdf/with-pdf [d (fix/partially-ruled-table-pdf)]
     (let [tables (pdf/extract-tables d {:page 1
