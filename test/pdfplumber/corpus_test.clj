@@ -199,7 +199,9 @@
                                   (nil? (get-in r [:golden :error]))
                                   (pos? (get-in r [:golden :pages] 0)))) rows)
           page-mismatch (filter #(not= (:pages %) (get-in % [:golden :pages])) ok)
-          sims (map #(jaccard (:text %) (get-in % [:golden :text])) ok)
+          text-similarities (map #(assoc % :similarity
+                                          (jaccard (:text %) (get-in % [:golden :text]))) ok)
+          sims (map :similarity text-similarities)
           word-ratios (for [r ok :let [gw (get-in r [:golden :words])] :when (pos? gw)]
                         (/ (double (:words r)) gw))
           missing-tables (remove #(page-table-golden? (:golden %)) ok)
@@ -264,6 +266,9 @@
           file-cell-recalls (for [[name pages] (group-by :name page-cell-recalls)]
                               {:name name :recall (apply min (map :recall pages))})
           worst-files (take 5 (sort-by (juxt :recall :name) file-cell-recalls))
+          worst-text-files (take 5 (sort-by (juxt :similarity :name)
+                                            (map #(select-keys % [:name :similarity])
+                                                 text-similarities)))
           zero-recall-pages (filter #(zero? (:recall %)) page-cell-recalls)
           content-gap-candidates (->> page-cell-recalls
                                       (filter #(and (< (:recall %) table-cell-recall-threshold)
@@ -278,6 +283,8 @@
                        (or (median word-ratios) 0.0)))
       (when (seq crashes)
         (println "  crashes:" (mapv (juxt :name :crash) crashes)))
+      (when (seq worst-text-files)
+        (println "  worst text similarity:" (mapv (juxt :name :similarity) worst-text-files)))
       (when (seq page-mismatch)
         (println "  page mismatch:" (mapv (juxt :name :pages #(get-in % [:golden :pages])) page-mismatch)))
       (println (format "[corpus tables] count-match=%.3f (%d/%d) | shape-match=%.3f (%d/%d) | cell-recall median=%.3f | zero-recall-pages=%d"
