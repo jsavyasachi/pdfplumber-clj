@@ -7,6 +7,13 @@
 (defn- row-texts [table]
   (mapv (fn [row] (mapv :text row)) (:rows table)))
 
+(deftest partial-cell-borders-share-a-component
+  (let [cell-components (ns-resolve 'pdfplumber.table 'cell-components)
+        cells [[0.0 0.0 1.0 2.0]
+               [1.0 0.0 2.0 1.0]
+               [1.0 1.0 2.0 2.0]]]
+    (is (= 1 (count (cell-components cells 0.01))))))
+
 (deftest lines-strategy
   (pdf/with-pdf [d (fix/table-pdf)]
     (let [t (pdf/extract-table d {:page 1 :strategy :lines})]
@@ -22,6 +29,13 @@
         (is (= 3 (get-in t [:debug :vertical-lines]))))
       (testing "cell maps carry a bbox"
         (is (every? (fn [row] (every? #(vector? (:bbox %)) row)) (:rows t)))))))
+
+(deftest rotated-lines-strategy
+  (pdf/with-pdf [d (fix/rotated-table-pdf)]
+    (let [t (pdf/extract-table d {:page 1 :strategy :lines})]
+      (is (= [["Date" "Amount" "Count"]
+              ["2026-01-01" "$10.00" "2"]]
+             (row-texts t))))))
 
 (deftest text-strategy
   (pdf/with-pdf [d (fix/text-table-pdf)]
@@ -54,6 +68,27 @@
       (when (= 2 (count tables))
         (is (not (g/intersects? (:bbox (first tables))
                                 (:bbox (second tables)))))))))
+
+(deftest side-by-side-ruled-tables
+  (pdf/with-pdf [d (fix/side-by-side-tables-pdf)]
+    (let [tables (pdf/extract-tables d {:page 1})]
+      (is (= 2 (count tables)))
+      (is (every? #(= [5 3]
+                      [(count (:rows %))
+                       (reduce max 0 (map count (:rows %)))])
+                  tables))
+      (is (= [["FooCol1" "FooCol2" "FooCol3"]
+              ["" "" ""]
+              ["" "" ""]
+              ["" "" ""]
+              ["" "" ""]]
+             (row-texts (first tables))))
+      (is (= [["BarCol1" "BarCol2" "BarCol3"]
+              ["" "" ""]
+              ["" "" ""]
+              ["" "" ""]
+              ["" "" ""]]
+             (row-texts (second tables)))))))
 
 (deftest per-axis-text-strategies
   (pdf/with-pdf [d (fix/partially-ruled-table-pdf)]

@@ -9,6 +9,7 @@
            [org.apache.pdfbox.pdmodel.encryption AccessPermission StandardProtectionPolicy]
            [org.apache.pdfbox.pdmodel.interactive.annotation PDAnnotationLink PDAnnotationText]
            [org.apache.pdfbox.pdmodel.interactive.action PDActionURI]
+           [org.apache.pdfbox.util Matrix]
            [java.awt Color]
            [java.awt.image BufferedImage]
            [java.io ByteArrayOutputStream]))
@@ -139,6 +140,30 @@
             (.endText cs)))))
     (->bytes doc)))
 
+(defn rotated-table-pdf
+  "Single rotated page with a 2x3 ruled table. Returns byte[]."
+  ^bytes []
+  (with-open [doc (PDDocument.)]
+    (let [page (PDPage. PDRectangle/LETTER)]
+      (.setRotation page 90)
+      (.addPage doc page)
+      (with-open [cs (PDPageContentStream. doc page)]
+        (.transform cs (Matrix. 0.0 1.0 -1.0 0.0 792.0 0.0))
+        (.setLineWidth cs (float 1.0))
+        (doseq [y [700 670 640]]
+          (.moveTo cs (float 72) (float y)) (.lineTo cs (float 540) (float y)) (.stroke cs))
+        (doseq [x [72 220 380 540]]
+          (.moveTo cs (float x) (float 640)) (.lineTo cs (float x) (float 700)) (.stroke cs))
+        (let [font (helvetica)]
+          (doseq [[s x y] [["Date" 80 678] ["Amount" 228 678] ["Count" 388 678]
+                           ["2026-01-01" 80 648] ["$10.00" 228 648] ["2" 388 648]]]
+            (.beginText cs)
+            (.setFont cs font (float 10))
+            (.newLineAtOffset cs (float x) (float y))
+            (.showText cs ^String s)
+            (.endText cs)))))
+    (->bytes doc)))
+
 (defn text-table-pdf
   "Single US-Letter page with a 2-column, 3-row table aligned by text position
    only (no ruling lines): left column at x=80, right at x=308; rows at
@@ -201,6 +226,37 @@
           (doseq [x xs]
             (.moveTo cs (float x) (float (last ys)))
             (.lineTo cs (float x) (float (first ys)))
+            (.stroke cs))
+          (doseq [[s x y] labels]
+            (.beginText cs)
+            (.setFont cs (helvetica) (float 10))
+            (.newLineAtOffset cs (float x) (float y))
+            (.showText cs ^String s)
+            (.endText cs)))))
+    (->bytes doc)))
+
+(defn side-by-side-tables-pdf
+  "Single page with two side-by-side ruled 5x3 tables. Returns byte[]."
+  ^bytes []
+  (with-open [doc (PDDocument.)]
+    (let [page (PDPage. PDRectangle/LETTER)]
+      (.addPage doc page)
+      (with-open [cs (PDPageContentStream. doc page)]
+        (.setLineWidth cs (float 1.0))
+        (doseq [{:keys [xs labels]}
+                [{:xs [60 120 180 240]
+                  :labels [["FooCol1" 68 698] ["FooCol2" 128 698]
+                           ["FooCol3" 188 698]]}
+                 {:xs [360 420 480 540]
+                  :labels [["BarCol1" 368 698] ["BarCol2" 428 698]
+                           ["BarCol3" 488 698]]}]]
+          (doseq [y [720 690 660 630 600 570]]
+            (.moveTo cs (float (first xs)) (float y))
+            (.lineTo cs (float (last xs)) (float y))
+            (.stroke cs))
+          (doseq [x xs]
+            (.moveTo cs (float x) (float 570))
+            (.lineTo cs (float x) (float 720))
             (.stroke cs))
           (doseq [[s x y] labels]
             (.beginText cs)

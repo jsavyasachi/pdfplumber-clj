@@ -37,23 +37,33 @@
 (defn- snap-to [positions tol v]
   (or (first (filter #(<= (Math/abs (- (double v) (double %))) tol) positions)) v))
 
-(defn- source-edges [objs strict?]
+(defn- rotate-edges [{:keys [h v]} rotation page-height]
+  (if (= rotation 90)
+    {:h (map (fn [{:keys [x top bottom]}]
+               {:y x :x0 (- page-height bottom) :x1 (- page-height top)}) v)
+     :v (map (fn [{:keys [y x0 x1]}]
+               {:x (- page-height y) :top x0 :bottom x1}) h)}
+    {:h h :v v}))
+
+(defn- source-edges [objs strict? rotation page-height]
   (let [lines (filter #(= :line (:type %)) objs)
         rects (if strict? [] (filter #(= :rect (:type %)) objs))]
-    {:h (concat
-         (for [line lines :when (= :horizontal (:orientation line))]
-           {:y (:top line) :x0 (:x0 line) :x1 (:x1 line)})
-         (mapcat (fn [rect]
-                   [{:y (:top rect) :x0 (:x0 rect) :x1 (:x1 rect)}
-                    {:y (:bottom rect) :x0 (:x0 rect) :x1 (:x1 rect)}])
-                 rects))
-     :v (concat
-         (for [line lines :when (= :vertical (:orientation line))]
-           {:x (:x0 line) :top (:top line) :bottom (:bottom line)})
-         (mapcat (fn [rect]
-                   [{:x (:x0 rect) :top (:top rect) :bottom (:bottom rect)}
-                    {:x (:x1 rect) :top (:top rect) :bottom (:bottom rect)}])
-                 rects))}))
+    (rotate-edges
+     {:h (concat
+          (for [line lines :when (= :horizontal (:orientation line))]
+            {:y (:top line) :x0 (:x0 line) :x1 (:x1 line)})
+          (mapcat (fn [rect]
+                    [{:y (:top rect) :x0 (:x0 rect) :x1 (:x1 rect)}
+                     {:y (:bottom rect) :x0 (:x0 rect) :x1 (:x1 rect)}])
+                  rects))
+      :v (concat
+          (for [line lines :when (= :vertical (:orientation line))]
+            {:x (:x0 line) :top (:top line) :bottom (:bottom line)})
+          (mapcat (fn [rect]
+                    [{:x (:x0 rect) :top (:top rect) :bottom (:bottom rect)}
+                     {:x (:x1 rect) :top (:top rect) :bottom (:bottom rect)}])
+                  rects))}
+     rotation page-height)))
 
 (defn- text-rows [words tol]
   (->> (sort-by :top words)
@@ -159,8 +169,11 @@
 
 (defn- strategy-edges [doc words objs opts]
   (let [bbox (page-bbox doc opts)
-        line-edges (source-edges objs false)
-        strict-edges (source-edges objs true)
+        page (.getPage doc (dec (int (or (:page opts) 1))))
+        rotation (mod (.getRotation page) 360)
+        page-height (double (.getHeight (.getMediaBox page)))
+        line-edges (source-edges objs false rotation page-height)
+        strict-edges (source-edges objs true rotation page-height)
         vertical-base (case (:vertical-strategy opts)
                    :lines (:v line-edges)
                    :lines-strict (:v strict-edges)
@@ -189,31 +202,59 @@
                      horizontal)]
     (normalize-edges {:h horizontal :v vertical} opts)))
 
+(defn- cell-bounded? [{:keys [h v]} x0 top x1 bottom x-tol y-tol]
+  (and (some #(and (<= (Math/abs (- (double (:y %)) top)) y-tol)
+                    (<= (:x0 %) (+ x0 x-tol))
+                    (>= (:x1 %) (- x1 x-tol))) h)
+       (some #(and (<= (Math/abs (- (double (:y %)) bottom)) y-tol)
+                    (<= (:x0 %) (+ x0 x-tol))
+                    (>= (:x1 %) (- x1 x-tol))) h)
+       (some #(and (<= (Math/abs (- (double (:x %)) x0)) x-tol)
+                    (<= (:top %) (+ top y-tol))
+                    (>= (:bottom %) (- bottom y-tol))) v)
+       (some #(and (<= (Math/abs (- (double (:x %)) x1)) x-tol)
+                    (<= (:top %) (+ top y-tol))
+                    (>= (:bottom %) (- bottom y-tol))) v)))
+
 (defn- intersection? [{:keys [h v]} x y x-tol y-tol]
   (and (some #(and (<= (Math/abs (- (double (:x %)) x)) x-tol)
-                    (<= (- (:top %) y-tol) y (+ (:bottom %) y-tol))) v)
+                    (<= (:top %) (+ y y-tol))
+                    (>= (:bottom %) (- y y-tol))) v)
        (some #(and (<= (Math/abs (- (double (:y %)) y)) y-tol)
-                    (<= (- (:x0 %) x-tol) x (+ (:x1 %) x-tol))) h)))
+                    (<= (:x0 %) (+ x x-tol))
+                    (>= (:x1 %) (- x x-tol))) h)))
 
 (defn- grid-cells [edges x-tolerance y-tolerance]
   (let [xs (sort (distinct (map :x (:v edges))))
         ys (sort (distinct (map :y (:h edges))))]
     (vec
-     (for [[top bottom] (partition 2 1 ys)
-           [x0 x1] (partition 2 1 xs)
-           :when (and (intersection? edges x0 top x-tolerance y-tolerance)
-                      (intersection? edges x1 top x-tolerance y-tolerance)
-                      (intersection? edges x0 bottom x-tolerance y-tolerance)
-                      (intersection? edges x1 bottom x-tolerance y-tolerance))]
-       [x0 top x1 bottom]))))
+     (keep identity
+           (for [x0 xs
+                 top ys
+                 :when (intersection? edges x0 top x-tolerance y-tolerance)]
+             (first
+              (for [bottom (filter #(and (< top %)
+                                         (intersection? edges x0 %
+                                                        x-tolerance y-tolerance))
+                                  ys)
+                    x1 (filter #(and (< x0 %)
+                                     (intersection? edges % top
+                                                    x-tolerance y-tolerance)
+                                     (intersection? edges % bottom
+                                                    x-tolerance y-tolerance))
+                               xs)
+                    :when (cell-bounded? edges x0 top x1 bottom
+                                         x-tolerance y-tolerance)]
+                [x0 top x1 bottom])))))))
+
+(defn- ranges-overlap? [a0 a1 b0 b1 tol]
+  (<= (max a0 b0) (+ (min a1 b1) tol)))
 
 (defn- adjacent-cells? [[ax0 at ax1 ab] [bx0 bt bx1 bb] tol]
-  (or (and (<= (Math/abs (- (double at) bt)) tol)
-           (<= (Math/abs (- (double ab) bb)) tol)
+  (or (and (ranges-overlap? at ab bt bb tol)
            (or (<= (Math/abs (- (double ax1) bx0)) tol)
                (<= (Math/abs (- (double bx1) ax0)) tol)))
-      (and (<= (Math/abs (- (double ax0) bx0)) tol)
-           (<= (Math/abs (- (double ax1) bx1)) tol)
+      (and (ranges-overlap? ax0 ax1 bx0 bx1 tol)
            (or (<= (Math/abs (- (double ab) bt)) tol)
                (<= (Math/abs (- (double bb) at)) tol)))))
 
