@@ -15,7 +15,7 @@
    :join-tolerance 3.0
    :edge-min-length 3.0
    :intersection-tolerance 3.0
-   :edge-min-length-prefilter false
+   :edge-min-length-prefilter 1.0
    :min-words-vertical 3
    :min-words-horizontal 1
    :text-x-tolerance 3.0
@@ -183,16 +183,21 @@
     (- (double (:x1 edge)) (:x0 edge))
     (- (double (:bottom edge)) (:top edge))))
 
+(defn- normalize-edge-min-length-prefilter [value]
+  (cond
+    (false? value) 0.0
+    (true? value) 1.0
+    :else (double value)))
+
 (defn- normalize-edges [{:keys [h v]} opts]
   (let [snap-x (double (or (:snap-x-tolerance opts) (:snap-tolerance opts)))
         snap-y (double (or (:snap-y-tolerance opts) (:snap-tolerance opts)))
         join-x (double (or (:join-x-tolerance opts) (:join-tolerance opts)))
         join-y (double (or (:join-y-tolerance opts) (:join-tolerance opts)))
+        edge-min-length-prefilter (:edge-min-length-prefilter opts)
         edge-min-length (:edge-min-length opts)
-        h (if (:edge-min-length-prefilter opts)
-            (filter #(>= (edge-length :h %) edge-min-length) h) h)
-        v (if (:edge-min-length-prefilter opts)
-            (filter #(>= (edge-length :v %) edge-min-length) v) v)
+        h (filter #(>= (edge-length :h %) edge-min-length-prefilter) h)
+        v (filter #(>= (edge-length :v %) edge-min-length-prefilter) v)
         ys (snap-positions (map :y h) snap-y)
         xs (snap-positions (map :x v) snap-x)
         h (map #(assoc % :y (snap-to ys snap-y (:y %))) h)
@@ -392,7 +397,9 @@
                (assoc :vertical-strategy legacy)
                (and legacy (not (contains? opts :horizontal-strategy)))
                (assoc :horizontal-strategy legacy))
-        opts (merge defaults opts)]
+        opts (-> (merge defaults opts)
+                 (update :edge-min-length-prefilter
+                         normalize-edge-min-length-prefilter))]
     (doseq [[axis strategy] [[:vertical (:vertical-strategy opts)]
                              [:horizontal (:horizontal-strategy opts)]]]
       (when-not (contains? strategies strategy)
@@ -410,7 +417,8 @@
    `:lines`, `:lines-strict`, `:text`, or `:explicit`; corresponding
    `:explicit-vertical-lines` / `:explicit-horizontal-lines`; and
    `:snap-tolerance`, `:join-tolerance`, `:edge-min-length`,
-   `:intersection-tolerance`, `:min-words-vertical`, and
+   `:edge-min-length-prefilter` as the minimum raw edge length before snapping
+   and joining, `:intersection-tolerance`, `:min-words-vertical`, and
    `:min-words-horizontal`. The legacy `:strategy` option sets both axes."
   ([doc] (extract-tables doc {}))
   ([doc opts]

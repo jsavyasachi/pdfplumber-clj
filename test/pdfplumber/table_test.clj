@@ -7,6 +7,34 @@
 (defn- row-texts [table]
   (mapv (fn [row] (mapv :text row)) (:rows table)))
 
+(defn- private-var [name]
+  (deref (ns-resolve 'pdfplumber.table name)))
+
+(deftest edge-min-length-prefilter-settings
+  (let [normalize-options (private-var 'normalize-options)
+        normalize-edges (private-var 'normalize-edges)
+        raw-edges {:h [{:y 10.0 :x0 20.0 :x1 20.5}]
+                   :v [{:x 30.0 :top 40.0 :bottom 40.5}]}
+        base (assoc (normalize-options {}) :edge-min-length 0.0)]
+    (testing "default uses one unit"
+      (is (= 1.0 (:edge-min-length-prefilter (normalize-options {}))))
+      (is (= {:h [] :v []}
+             (normalize-edges raw-edges base))))
+    (testing "numeric value is used"
+      (let [opts (normalize-options (assoc base :edge-min-length-prefilter 0.25))]
+        (is (= 0.25 (:edge-min-length-prefilter opts)))
+        (is (= 1 (count (:h (normalize-edges raw-edges opts)))))
+        (is (= 1 (count (:v (normalize-edges raw-edges opts)))))))
+    (testing "boolean values remain compatible"
+      (let [false-opts (assoc base :edge-min-length-prefilter false)
+            true-opts (assoc base :edge-min-length-prefilter true)]
+        (is (= 0.0 (:edge-min-length-prefilter (normalize-options false-opts))))
+        (is (= 1.0 (:edge-min-length-prefilter (normalize-options true-opts))))
+        (is (= 1 (count (:h (normalize-edges raw-edges
+                                             (normalize-options false-opts))))))
+        (is (= 0 (count (:h (normalize-edges raw-edges
+                                            (normalize-options true-opts))))))))))
+
 (deftest partial-cell-borders-share-a-component
   (let [cell-components (ns-resolve 'pdfplumber.table 'cell-components)
         cells [[0.0 0.0 1.0 2.0]
