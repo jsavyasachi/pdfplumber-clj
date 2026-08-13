@@ -30,6 +30,14 @@
       (testing "cell maps carry a bbox"
         (is (every? (fn [row] (every? #(vector? (:bbox %)) row)) (:rows t)))))))
 
+(deftest lines-strategy-uses-polyline-curves
+  (pdf/with-pdf [d (fix/polyline-table-pdf)]
+    (let [t (pdf/extract-table d {:page 1 :strategy :lines})]
+      (is (= [["Date" "Amount"]
+              ["2026-01-01" "$10.00"]]
+             (row-texts t)))
+      (is (= [] (pdf/extract-tables d {:page 1 :strategy :lines-strict}))))))
+
 (deftest rotated-lines-strategy
   (pdf/with-pdf [d (fix/rotated-table-pdf)]
     (let [t (pdf/extract-table d {:page 1 :strategy :lines})]

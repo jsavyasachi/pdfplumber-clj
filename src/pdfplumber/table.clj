@@ -45,23 +45,41 @@
                {:x (- page-height y) :top x0 :bottom x1}) h)}
     {:h h :v v}))
 
+(defn- curve-edges [curves]
+  (reduce
+   (fn [edges curve]
+     (reduce
+      (fn [{:keys [h v]} [[x0 top] [x1 bottom]]]
+        (cond
+          (= x0 x1) {:h h :v (conj v {:x x0 :top (min top bottom) :bottom (max top bottom)})}
+          (= top bottom) {:h (conj h {:y top :x0 (min x0 x1) :x1 (max x0 x1)}) :v v}
+          :else {:h h :v v}))
+      edges
+      (partition 2 1 (:pts curve))))
+   {:h [] :v []}
+   curves))
+
 (defn- source-edges [objs strict? rotation page-height page-x0 page-y0]
   (let [lines (filter #(= :line (:type %)) objs)
-        rects (if strict? [] (filter #(= :rect (:type %)) objs))]
+        rects (if strict? [] (filter #(= :rect (:type %)) objs))
+        curves (if strict? [] (filter #(= :curve (:type %)) objs))
+        {curve-h :h curve-v :v} (curve-edges curves)]
     (let [edges {:h (concat
           (for [line lines :when (= :horizontal (:orientation line))]
             {:y (:top line) :x0 (:x0 line) :x1 (:x1 line)})
           (mapcat (fn [rect]
-                    [{:y (:top rect) :x0 (:x0 rect) :x1 (:x1 rect)}
+                     [{:y (:top rect) :x0 (:x0 rect) :x1 (:x1 rect)}
                      {:y (:bottom rect) :x0 (:x0 rect) :x1 (:x1 rect)}])
-                  rects))
+                  rects)
+          curve-h)
       :v (concat
           (for [line lines :when (= :vertical (:orientation line))]
             {:x (:x0 line) :top (:top line) :bottom (:bottom line)})
           (mapcat (fn [rect]
-                    [{:x (:x0 rect) :top (:top rect) :bottom (:bottom rect)}
+                     [{:x (:x0 rect) :top (:top rect) :bottom (:bottom rect)}
                      {:x (:x1 rect) :top (:top rect) :bottom (:bottom rect)}])
-                  rects))}]
+                  rects)
+          curve-v)}]
       (rotate-edges
        {:h (map #(-> %
                      (update :x0 - page-x0)

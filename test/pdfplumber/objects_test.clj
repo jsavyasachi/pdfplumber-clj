@@ -52,6 +52,9 @@
       (is (= 1 (count rects)))
       (is (= 0 (count lines)))
       (is (= 2 (count curves)))
+      (is (= #{[72.0 92.0] [120.0 112.0] [168.0 92.0] [216.0 112.0] [264.0 92.0]
+               [400.0 392.0] [450.0 362.0] [420.0 312.0] [370.0 342.0]}
+             (set (mapcat :pts curves))))
       (let [r (first rects)]
         (is (approx= 100.0 (:x0 r)))
         (is (approx= 300.0 (:x1 r)))

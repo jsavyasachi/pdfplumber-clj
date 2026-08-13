@@ -198,6 +198,35 @@
             (.endText cs)))))
     (->bytes doc)))
 
+(defn polyline-table-pdf
+  "Single US-Letter page with a 2x2 table drawn as six open polylines."
+  ^bytes []
+  (with-open [doc (PDDocument.)]
+    (let [page (PDPage. PDRectangle/LETTER)]
+      (.addPage doc page)
+      (with-open [cs (PDPageContentStream. doc page)]
+        (.setLineWidth cs (float 1.0))
+        (doseq [[x0 y0 x1 y1 x2 y2]
+                [[72 700 300 700 540 700]
+                 [72 670 300 670 540 670]
+                 [72 640 300 640 540 640]
+                 [72 640 72 670 72 700]
+                 [300 640 300 670 300 700]
+                 [540 640 540 670 540 700]]]
+          (.moveTo cs (float x0) (float y0))
+          (.lineTo cs (float x1) (float y1))
+          (.lineTo cs (float x2) (float y2))
+          (.stroke cs))
+        (let [font (helvetica)]
+          (doseq [[s x y] [["Date" 80 678] ["Amount" 308 678]
+                           ["2026-01-01" 80 648] ["$10.00" 308 648]]]
+            (.beginText cs)
+            (.setFont cs font (float 10))
+            (.newLineAtOffset cs (float x) (float y))
+            (.showText cs ^String s)
+            (.endText cs)))))
+    (->bytes doc)))
+
 (defn rotated-table-pdf
   "Single rotated page with a 2x3 ruled table. Returns byte[]."
   ^bytes []
