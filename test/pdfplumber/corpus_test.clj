@@ -16,7 +16,7 @@
 
 (def ^:private golden-file (io/file "corpus/golden.json"))
 (def ^:private corpus-dir "corpus/pdfplumber")
-(def ^:private table-cell-recall-threshold 0.60)
+(def ^:private table-cell-recall-threshold 0.75)
 
 (defn- tokens [s]
   (set (remove str/blank? (str/split (str/lower-case (or s "")) #"\s+"))))
@@ -42,7 +42,14 @@
   [(count table) (reduce max 0 (map count table))])
 
 (defn- normalized-cell [cell]
-  (str/trim (or cell "")))
+  (str/trim (str/replace (or cell "") #"\s+" " ")))
+
+(deftest normalizes-table-cell-whitespace
+  (testing "cell whitespace does not affect content comparison"
+    (is (= "NICS Firearm Background Checks November - 2015"
+           (normalized-cell "  NICS Firearm Background Checks\nNovember\t- 2015  "))))
+  (testing "whitespace-only cells are empty after normalization"
+    (is (str/blank? (normalized-cell " \n\t ")))))
 
 (defn- page-cells [tables]
   (->> tables
@@ -63,6 +70,20 @@
     (/ (double (multiset-overlap expected actual))
        (count expected))
     1.0))
+
+(defn- missing-cell-examples [expected actual]
+  (loop [cells expected
+         actual-counts (frequencies actual)
+         missing []]
+    (if-let [cell (first cells)]
+      (if (pos? (get actual-counts cell 0))
+        (recur (rest cells) (update actual-counts cell dec) missing)
+        (recur (rest cells) actual-counts (conj missing cell)))
+      (->> missing distinct (take 3) vec))))
+
+(deftest finds-python-cell-examples-missing-from-clj
+  (is (= ["one" "two" "three"]
+         (missing-cell-examples ["one" "two" "two" "three"] ["two"]))))
 
 (defn- page-table-golden? [golden]
   (and (vector? (:tables golden))
@@ -149,6 +170,8 @@
                                               :recall (multiset-recall python-cells clj-cells)
                                               :python-cells (count python-cells)
                                               :clj-cells (count clj-cells)
+                                              :missing-examples
+                                              (missing-cell-examples python-cells clj-cells)
                                               :unmatched-clj-cells
                                               (- (count clj-cells)
                                                  (multiset-overlap clj-cells python-cells))})))
@@ -159,7 +182,8 @@
           worst-files (take 5 (sort-by (juxt :recall :name) file-cell-recalls))
           zero-recall-pages (filter #(zero? (:recall %)) page-cell-recalls)
           content-gap-candidates (->> page-cell-recalls
-                                      (filter #(< (:recall %) table-cell-recall-threshold))
+                                      (filter #(and (< (:recall %) table-cell-recall-threshold)
+                                                    (>= (:python-cells %) 5)))
                                       (group-by :name)
                                       vals
                                       (map #(first (sort-by (juxt :recall :page) %)))
@@ -183,7 +207,8 @@
         (println "  worst cell recall:" (mapv (juxt :name :recall) worst-files)))
       (when (seq content-gap-candidates)
         (println "  low page recall:"
-                 (mapv #(select-keys % [:name :page :recall :python-cells :clj-cells])
+                 (mapv #(select-keys % [:name :page :recall :python-cells :clj-cells
+                                         :missing-examples])
                        content-gap-candidates)))
       (when (< (count table-count-matches) (count table-rows))
         (println "  table count mismatch:"
