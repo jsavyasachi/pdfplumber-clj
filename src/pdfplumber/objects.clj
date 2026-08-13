@@ -143,9 +143,7 @@
                (= 2 (count points)))
         (line-obj page-h page-no doctop-offset attrs (first points) (second points))
         (curve-obj page-h page-no doctop-offset attrs
-                   (cond-> (if (:has-curve? subpath)
-                             (:curve-points subpath)
-                             points)
+                   (cond-> points
                      (:closed? subpath) (conj (first points))))))))
 
 (defn- object-engine
@@ -171,19 +169,15 @@
             (swap! st (fn [s] (-> s
                                   (assoc :cur [x y] :start [x y])
                                   (update :subpaths conj {:points [[x y]]
-                                                          :curve-points [[x y]]
                                                           :closed? false})))))
           (lineTo [x y]
             (swap! st (fn [s] (-> s
                                   (update-in [:subpaths (dec (count (:subpaths s))) :points] conj [x y])
-                                  (update-in [:subpaths (dec (count (:subpaths s))) :curve-points] conj [x y])
                                   (assoc :cur [x y])))))
           (curveTo [x1 y1 x2 y2 x3 y3]
             (swap! st (fn [s] (-> s
                                   (assoc-in [:subpaths (dec (count (:subpaths s))) :has-curve?] true)
                                   (update-in [:subpaths (dec (count (:subpaths s))) :points] conj [x3 y3])
-                                  (update-in [:subpaths (dec (count (:subpaths s))) :curve-points]
-                                             into [[x1 y1] [x2 y2] [x3 y3]])
                                   (assoc :cur [x3 y3])))))
           (getCurrentPoint []
             (let [[x y] (or (:cur @st) [0.0 0.0])]
