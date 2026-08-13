@@ -69,6 +69,15 @@
                      (update :bottom + page-y0)) (:v edges))}
        rotation page-height))))
 
+(defn- rotate-words [words rotation page-height]
+  (if (= rotation 90)
+    (mapv (fn [{:keys [x0 top x1 bottom] :as word}]
+            (assoc word
+                   :x0 (- page-height bottom) :top x0
+                   :x1 (- page-height top) :bottom x1))
+          words)
+    words))
+
 (defn- text-rows [words tol]
   (->> (sort-by :top words)
        (reduce (fn [rows word]
@@ -312,7 +321,12 @@
                                   (when (str/starts-with? n "text-")
                                     [(keyword (subs n 5)) v]))))
                         opts)
-        words (text/words doc (merge opts text-opts))
+        page (.getPage doc (dec (int (or (:page opts) 1))))
+        rotation (mod (.getRotation page) 360)
+        page-box (.getMediaBox page)
+        page-height (double (.getHeight page-box))
+        word-rotation (if (> (.getWidth page-box) (.getHeight page-box)) rotation 0)
+        words (rotate-words (text/words doc (merge opts text-opts)) word-rotation page-height)
         objs (objects/objects doc opts)
         edges (strategy-edges doc words objs opts)
         x-tolerance (double (or (:intersection-x-tolerance opts)
