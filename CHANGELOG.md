@@ -2,6 +2,20 @@
 
 All notable changes to this project are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.0.2] - 2026-08-13
+
+### Fixed
+- Ruled edges used MediaBox-relative coordinates while words used CropBox-relative
+  coordinates. A page whose CropBox origin differs from its MediaBox origin lost
+  table cells.
+- A rectangle drawn as a closed axis-aligned path became four `:line` objects
+  instead of one `:rect`. The misclassified edges produced false table cells, and
+  `:lines-strict` could not filter them.
+
+### Added
+- The `parity` workflow compares rects, lines, curves, images, and annots against
+  Python pdfplumber, per page, by count and bounding box.
+
 ## [1.0.1] - 2026-08-13
 
 ### Fixed
