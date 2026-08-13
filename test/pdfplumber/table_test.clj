@@ -192,6 +192,7 @@
     (let [clusters (private-var 'clusters)
           snap-values (private-var 'snap-values)]
       (is (= 1 (count (clusters [397.1999816894531 400.20001220703125] 3.0))))
+      (is (= 1 (count (clusters [565.19995 568.20004] 3.0))))
       (is (= [3.0 3.0 3.0]
              (snap-values [0.0 3.0 6.0] 3.0)))
       (let [values (vec (concat (range 0.0 101.0) [102.0]))]
