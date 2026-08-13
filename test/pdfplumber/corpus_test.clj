@@ -71,6 +71,13 @@
        (count expected))
     1.0))
 
+(defn- ellipsize
+  "Shorten a cell to keep the printed report readable. Some corpus cells hold a
+   whole page of text."
+  [s]
+  (let [s (str s)]
+    (if (> (count s) 60) (str (subs s 0 60) "...") s)))
+
 (defn- missing-cell-examples [expected actual]
   (loop [cells expected
          actual-counts (frequencies actual)
@@ -79,7 +86,7 @@
       (if (pos? (get actual-counts cell 0))
         (recur (rest cells) (update actual-counts cell dec) missing)
         (recur (rest cells) actual-counts (conj missing cell)))
-      (->> missing distinct (take 3) vec))))
+      (->> missing distinct (take 3) (mapv ellipsize)))))
 
 (deftest finds-python-cell-examples-missing-from-clj
   (is (= ["one" "two" "three"]
@@ -206,10 +213,12 @@
       (when (seq worst-files)
         (println "  worst cell recall:" (mapv (juxt :name :recall) worst-files)))
       (when (seq content-gap-candidates)
-        (println "  low page recall:"
-                 (mapv #(select-keys % [:name :page :recall :python-cells :clj-cells
-                                         :missing-examples])
-                       content-gap-candidates)))
+        (println "  low page recall:")
+        (doseq [c content-gap-candidates]
+          (println (format "    %-46s p%-3d recall=%.3f py=%-4d clj=%-4d %s"
+                           (:name c) (:page c) (:recall c)
+                           (:python-cells c) (:clj-cells c)
+                           (pr-str (:missing-examples c))))))
       (when (< (count table-count-matches) (count table-rows))
         (println "  table count mismatch:"
                  (mapv (juxt :name #(reduce + 0 (map count (:tables %)))
