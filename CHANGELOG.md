@@ -2,6 +2,18 @@
 
 All notable changes to this project are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.3.0] - 2026-08-13
+
+### Fixed
+- Each edge snaps to the mean of the coordinate cluster that holds it. An edge
+  could take the position of a different cluster, which moved it away from the
+  table it belongs to.
+- Cells join into one table only when they share a corner. Cells that were only
+  near each other joined, which merged tables that are separate.
+- Coordinate clustering allows for the difference between the PDFBox and
+  pdfminer coordinate sources. PDFBox reads a coordinate as a 32-bit float, so a
+  gap that is exactly at the snap tolerance can measure fractionally wider.
+
 ## [1.2.0] - 2026-08-13
 
 ### Fixed
