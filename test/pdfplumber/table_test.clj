@@ -186,6 +186,17 @@
     (is (= [] (pdf/extract-tables d {:page 1})))
     (is (nil? (pdf/extract-table d {:page 1})))))
 
+(deftest snaps-near-tolerance-cell-boundaries
+  (pdf/with-pdf [d (fix/near-tolerance-cells-pdf)]
+    (is (= 1 (count (pdf/extract-tables d {:page 1}))))
+    (let [clusters (private-var 'clusters)
+          snap-values (private-var 'snap-values)]
+      (is (= 1 (count (clusters [397.1999816894531 400.20001220703125] 3.0))))
+      (is (= [3.0 3.0 3.0]
+             (snap-values [0.0 3.0 6.0] 3.0)))
+      (let [values (vec (concat (range 0.0 101.0) [102.0]))]
+        (is (= 50.0 (last (butlast (snap-values values 1.0)))))))))
+
 (deftest complete-settings-and-finder
   (pdf/with-pdf [d (fix/partially-ruled-table-pdf)]
     (testing "explicit lines are additive to a non-explicit strategy"

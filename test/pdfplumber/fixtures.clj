@@ -102,6 +102,19 @@
         (.addRect cs (float 100) (float 400) (float 200) (float 100)) (.stroke cs)))
     (->bytes doc)))
 
+(defn near-tolerance-cells-pdf
+  "Single page with two vertically adjacent cell rectangles separated by a near-tolerance gap."
+  ^bytes []
+  (with-open [doc (PDDocument.)]
+    (let [page (PDPage. PDRectangle/LETTER)]
+      (.addPage doc page)
+      (with-open [cs (PDPageContentStream. doc page)]
+        (.setLineWidth cs (float 1.0))
+        (.addRect cs (float 100.0) (float 500.0) (float 80.0) (float 40.0))
+        (.addRect cs (float 100.0) (float 456.99997) (float 80.0) (float 40.0))
+        (.stroke cs)))
+    (->bytes doc)))
+
 (defn closed-path-pdf
   "Single page with a closed rectangle, an open zigzag, and a rotated quadrilateral."
   ^bytes []
