@@ -17,6 +17,20 @@
 (def ^:private golden-file (io/file "corpus/golden.json"))
 (def ^:private corpus-dir "corpus/pdfplumber")
 (def ^:private table-cell-recall-threshold 0.90)
+(def ^:private object-types [:rects :lines :curves :images :annots])
+(def ^:private object-box-recall-thresholds
+  {:rects 0.95
+   :lines 0.95
+   :curves 0.95
+   :images 0.95
+   :annots 0.95})
+
+(def ^:private object-extractors
+  {:rects pdf/rects
+   :lines pdf/lines
+   :curves pdf/curves
+   :images pdf/images
+   :annots pdf/annots})
 
 (defn- tokens [s]
   (set (remove str/blank? (str/split (str/lower-case (or s "")) #"\s+"))))
@@ -71,6 +85,16 @@
        (count expected))
     1.0))
 
+(defn- rounded-coordinate [n]
+  (/ (double (Math/round (* 100.0 (double n)))) 100.0))
+
+(defn- object-box [object]
+  (mapv (comp rounded-coordinate object) [:x0 :top :x1 :bottom]))
+
+(defn- object-record [objects]
+  {:count (count objects)
+   :boxes (mapv object-box objects)})
+
 (defn- ellipsize
   "Shorten a cell to keep the printed report readable. Some corpus cells hold a
    whole page of text."
@@ -103,8 +127,25 @@
                               page)))
                (:tables golden))))
 
+(defn- page-object-golden? [golden object-type]
+  (let [pages (get golden object-type)]
+    (and (vector? pages)
+         (= (:pages golden) (count pages))
+         (every? (fn [page]
+                   (and (map? page)
+                        (integer? (:count page))
+                        (not (neg? (:count page)))
+                        (vector? (:boxes page))
+                        (= (:count page) (count (:boxes page)))
+                        (every? (fn [box]
+                                  (and (vector? box)
+                                       (= 4 (count box))
+                                       (every? number? box)))
+                                (:boxes page))))
+                 pages))))
+
 (defn- probe [name]
-  "Extract with pdfplumber-clj. Return {:pages :text :words :tables} or {:handled msg}
+  "Extract with pdfplumber-clj. Return {:pages :text :words :tables :objects} or {:handled msg}
    for a graceful :pdfplumber/error, or {:crash class} for anything uncaught."
   (try
     (pdf/with-pdf [d (io/file corpus-dir name)]
@@ -114,7 +155,14 @@
          :words (count (pdf/words d))
          :tables (mapv #(mapv table-rows
                                (pdf/extract-tables d {:page (:page-number %)}))
-                       pages)}))
+                       pages)
+         :objects (into {}
+                        (map (fn [[object-type extract]]
+                               [object-type
+                                (mapv #(object-record
+                                        (extract d {:page (:page-number %)}))
+                                      pages)]))
+                        object-extractors)}))
     (catch clojure.lang.ExceptionInfo e
       (if (:pdfplumber/error (ex-data e))
         {:handled (:pdfplumber/error (ex-data e))}
@@ -151,6 +199,31 @@
           word-ratios (for [r ok :let [gw (get-in r [:golden :words])] :when (pos? gw)]
                         (/ (double (:words r)) gw))
           missing-tables (remove #(page-table-golden? (:golden %)) ok)
+          missing-objects (into {}
+                                (map (fn [object-type]
+                                       [object-type
+                                        (remove #(page-object-golden? (:golden %) object-type)
+                                                ok)]))
+                                object-types)
+          object-page-recalls
+          (into {}
+                (map (fn [object-type]
+                       [object-type
+                        (mapcat (fn [r]
+                                  (map-indexed
+                                   (fn [page-index [clj-page python-page]]
+                                     {:name (:name r)
+                                      :page (inc page-index)
+                                      :recall (multiset-recall (:boxes python-page)
+                                                                (:boxes clj-page))
+                                      :count-match (= (:count clj-page)
+                                                      (:count python-page))
+                                      :python-count (:count python-page)
+                                      :clj-count (:count clj-page)})
+                                   (map vector (get-in r [:objects object-type])
+                                        (get-in r [:golden object-type]))))
+                                (remove (set (get missing-objects object-type)) ok))]))
+                object-types)
           table-rows (remove (set missing-tables) ok)
           table-count-matches (filter #(= (reduce + 0 (map count (:tables %)))
                                           (reduce + 0 (map count (get-in % [:golden :tables]))))
@@ -224,6 +297,21 @@
                  (mapv (juxt :name #(reduce + 0 (map count (:tables %)))
                              #(reduce + 0 (map count (get-in % [:golden :tables]))))
                        (remove (set table-count-matches) table-rows))))
+      (doseq [object-type object-types]
+        (let [page-recalls (get object-page-recalls object-type)
+              count-matches (filter :count-match page-recalls)
+              file-recalls (for [[name pages] (group-by :name page-recalls)]
+                             {:name name :recall (apply min (map :recall pages))})
+              worst-files (take 5 (sort-by (juxt :recall :name) file-recalls))]
+          (println (format "[corpus %s] count-match=%.3f (%d/%d) | box-recall median=%.3f"
+                           (name object-type)
+                           (if (seq page-recalls)
+                             (/ (double (count count-matches)) (count page-recalls))
+                           0.0)
+                           (count count-matches) (count page-recalls)
+                           (or (median (map :recall page-recalls)) 0.0)))
+          (when (seq worst-files)
+            (println "  worst box recall:" (mapv (juxt :name :recall) worst-files)))))
       (testing "the golden actually holds a corpus"
         ;; This guards the other direction. A golden that compares nothing could
         ;; otherwise satisfy each assertion below vacuously.
@@ -248,6 +336,21 @@
       (testing "the golden records tables for every comparable PDF"
         (is (empty? (mapv :name missing-tables))
             (str "golden lacks per-page :tables for " (mapv :name missing-tables))))
+      (testing "the golden records page objects for every comparable PDF"
+        (doseq [object-type object-types]
+          (let [missing (get missing-objects object-type)]
+            (is (empty? (mapv :name missing))
+                (str "golden lacks per-page " object-type " for "
+                     (mapv :name missing))))))
+      ;; The test asserts recall on the MEDIAN. Some corpus PDFs have divergent
+      ;; object extraction in Python pdfplumber. A minimum would make its bugs
+      ;; part of this contract. Investigate a lower median, not one low score.
+      (testing "aggregate page object box recall is high"
+        (doseq [object-type object-types]
+          (is (>= (or (median (map :recall (get object-page-recalls object-type))) 0.0)
+                  (get object-box-recall-thresholds object-type))
+              (str object-type " box recall fell below "
+                   (get object-box-recall-thresholds object-type)))))
       ;; The test asserts recall on the MEDIAN. Some corpus PDFs have damaged
       ;; text extraction in Python pdfplumber. A minimum would make its bugs
       ;; part of this contract. Investigate a lower median, not one low score.
