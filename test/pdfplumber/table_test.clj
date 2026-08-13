@@ -104,6 +104,14 @@
                "Bar7" "Bar8" "Bar9" "Bar10" "Bar11" "Bar12"}
              (set cells))))))
 
+(deftest ruled-table-with-offset-cropbox
+  (pdf/with-pdf [d (fix/cropbox-offset-table-pdf)]
+    (let [t (pdf/extract-table d {:page 1 :strategy :lines})]
+      (is (= [["Date" "Amount"]
+              ["2026-01-01" "$10.00"]]
+             (row-texts t)))
+      (is (= 4 (count (:cells t)))))))
+
 (deftest per-axis-text-strategies
   (pdf/with-pdf [d (fix/partially-ruled-table-pdf)]
     (let [tables (pdf/extract-tables d {:page 1

@@ -311,6 +311,32 @@
             (.endText cs)))))
     (->bytes doc)))
 
+(defn cropbox-offset-table-pdf
+  "Single page with a nonzero CropBox origin and a 2x2 ruled table. Returns byte[]."
+  ^bytes []
+  (with-open [doc (PDDocument.)]
+    (let [page (PDPage. PDRectangle/LETTER)
+          crop (doto (PDRectangle.)
+                 (.setLowerLeftX (float 100)) (.setLowerLeftY (float 100))
+                 (.setUpperRightX (float 512)) (.setUpperRightY (float 712)))]
+      (.setCropBox page crop)
+      (.addPage doc page)
+      (with-open [cs (PDPageContentStream. doc page)]
+        (.setLineWidth cs (float 1.0))
+        (doseq [y [600 570 540]]
+          (.moveTo cs (float 150) (float y)) (.lineTo cs (float 450) (float y)) (.stroke cs))
+        (doseq [x [150 300 450]]
+          (.moveTo cs (float x) (float 540)) (.lineTo cs (float x) (float 600)) (.stroke cs))
+        (let [font (helvetica)]
+          (doseq [[s x y] [["Date" 158 578] ["Amount" 308 578]
+                           ["2026-01-01" 158 548] ["$10.00" 308 548]]]
+            (.beginText cs)
+            (.setFont cs font (float 10))
+            (.newLineAtOffset cs (float x) (float y))
+            (.showText cs ^String s)
+            (.endText cs)))))
+    (->bytes doc)))
+
 (defn explicit-table-pdf
   "Single page with table text but no ruling lines. Returns byte[]."
   ^bytes []
