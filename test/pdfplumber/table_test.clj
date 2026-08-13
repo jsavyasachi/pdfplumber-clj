@@ -42,6 +42,12 @@
                [1.0 1.0 2.0 2.0]]]
     (is (= 1 (count (cell-components cells 0.01))))))
 
+(deftest cells-without-shared-corners-stay-separate
+  (let [cell-components (ns-resolve 'pdfplumber.table 'cell-components)
+        cells [[0.0 0.0 1.0 1.0]
+               [1.5 0.0 2.5 1.0]]]
+    (is (= 2 (count (cell-components cells 3.0))))))
+
 (deftest lines-strategy
   (pdf/with-pdf [d (fix/table-pdf)]
     (let [t (pdf/extract-table d {:page 1 :strategy :lines})]
