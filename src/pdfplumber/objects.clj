@@ -109,6 +109,11 @@
     (assoc (rich-bbox :curve page-h page-no doctop-offset x0 top x1 bottom attrs)
            :pts pts)))
 
+(defn- path-line-pairs [subpath]
+  (let [points (:points subpath)]
+    (cond-> (partition 2 1 points)
+      (:closed? subpath) (concat [[(last points) (first points)]]))))
+
 (defn- png-bytes ^bytes [^PDImage image]
   (let [out (ByteArrayOutputStream.)]
     (ImageIO/write (.getImage image) "png" out)
@@ -137,27 +142,36 @@
 
 (defn- object-engine
   "A PDFGraphicsStreamEngine that adds top-left object maps to `out`."
-  ^PDFGraphicsStreamEngine [^PDPage page page-no doctop-offset out include-image-data?]
+  ^PDFGraphicsStreamEngine [^PDPage page page-no doctop-offset out
+                            include-image-data? include-path-segments?]
   (let [page-h (double (.getHeight (.getMediaBox page)))
-        st (atom {:cur nil :start nil :subpaths [] :rects [] :curves []})
+        st (atom {:cur nil :start nil :subpaths [] :rects []})
         engine-holder (atom nil)
         flush! (fn []
-                 (let [{:keys [subpaths rects curves]} @st
+                 (let [{:keys [subpaths rects]} @st
                        attrs (paint-attrs ^PDFGraphicsStreamEngine @engine-holder)]
                    (doseq [subpath subpaths]
                      (if-let [corners (rect-corners subpath)]
                        (swap! out conj (rect-obj page-h page-no doctop-offset attrs corners))
-                       (do
-                         (doseq [[a b] (partition 2 1 (:points subpath))]
-                           (swap! out conj (line-obj page-h page-no doctop-offset attrs a b)))
-                         (when (:closed? subpath)
+                       (let [points (:points subpath)
+                             line? (and (not (:has-curve? subpath))
+                                        (= 2 (count points)))]
+                         (if line?
                            (swap! out conj (line-obj page-h page-no doctop-offset attrs
-                                                     (last (:points subpath))
-                                                     (first (:points subpath))))))))
+                                                     (first points) (second points)))
+                           (swap! out conj (curve-obj page-h page-no doctop-offset attrs
+                                                       (cond-> (if (:has-curve? subpath)
+                                                                 (:curve-points subpath)
+                                                                 points)
+                                                         (:closed? subpath) (conj (first points))))))
+                         (when (and include-path-segments?
+                                    (not (:has-curve? subpath))
+                                    (not line?))
+                           (doseq [[a b] (path-line-pairs subpath)]
+                             (swap! out conj (line-obj page-h page-no doctop-offset attrs a b)))))))
                    (doseq [r rects] (swap! out conj (rect-obj page-h page-no doctop-offset attrs r)))
-                   (doseq [c curves] (swap! out conj (curve-obj page-h page-no doctop-offset attrs c)))
-                   (swap! st assoc :cur nil :start nil :subpaths [] :rects [] :curves [])))
-        clear! (fn [] (swap! st assoc :cur nil :start nil :subpaths [] :rects [] :curves []))
+                   (swap! st assoc :cur nil :start nil :subpaths [] :rects [])))
+        clear! (fn [] (swap! st assoc :cur nil :start nil :subpaths [] :rects []))
         engine
         (proxy [PDFGraphicsStreamEngine] [page]
           (appendRectangle [p0 p1 p2 p3]
@@ -165,15 +179,20 @@
           (moveTo [x y]
             (swap! st (fn [s] (-> s
                                   (assoc :cur [x y] :start [x y])
-                                  (update :subpaths conj {:points [[x y]] :closed? false})))))
+                                  (update :subpaths conj {:points [[x y]]
+                                                          :curve-points [[x y]]
+                                                          :closed? false})))))
           (lineTo [x y]
             (swap! st (fn [s] (-> s
                                   (update-in [:subpaths (dec (count (:subpaths s))) :points] conj [x y])
+                                  (update-in [:subpaths (dec (count (:subpaths s))) :curve-points] conj [x y])
                                   (assoc :cur [x y])))))
           (curveTo [x1 y1 x2 y2 x3 y3]
             (swap! st (fn [s] (-> s
                                   (assoc-in [:subpaths (dec (count (:subpaths s))) :has-curve?] true)
-                                  (update :curves conj [(:cur s) [x1 y1] [x2 y2] [x3 y3]])
+                                  (update-in [:subpaths (dec (count (:subpaths s))) :points] conj [x3 y3])
+                                  (update-in [:subpaths (dec (count (:subpaths s))) :curve-points]
+                                             into [[x1 y1] [x2 y2] [x3 y3]])
                                   (assoc :cur [x3 y3])))))
           (getCurrentPoint []
             (let [[x y] (or (:cur @st) [0.0 0.0])]
@@ -201,11 +220,13 @@
 (defn- page-height [^PDDocument doc ^long p]
   (double (.getHeight (.getMediaBox (.getPage doc (dec (int p)))))))
 
-(defn- page-objects [^PDDocument doc ^long p include-image-data?]
+(defn- page-objects [^PDDocument doc ^long p include-image-data? include-path-segments?]
   (let [page (.getPage doc (dec (int p)))
         offset (reduce + 0.0 (map #(page-height doc %) (range 1 p)))
         out (atom [])
-        ^PDFGraphicsStreamEngine engine (object-engine page p offset out include-image-data?)]
+        ^PDFGraphicsStreamEngine engine (object-engine page p offset out
+                                                        include-image-data?
+                                                        include-path-segments?)]
     (.processPage engine page)
     @out))
 
@@ -219,9 +240,13 @@
    `:types` (a set to keep), `:bbox` (keep intersecting objects), and
    `:include-image-data?` (attach decoded PNG `:bytes`; false by default)."
   ([doc] (objects doc {}))
-  ([^PDDocument doc {:keys [page bbox types include-image-data? view-operations]}]
+  ([^PDDocument doc {:keys [page bbox types include-image-data? view-operations] :as opts}]
    (let [pages (if page [(long page)] (range 1 (inc (.getNumberOfPages doc))))
-         all (into [] (mapcat #(page-objects doc % include-image-data?)) pages)]
+         include-path-segments? (and (nil? types)
+                                     (or (contains? opts :vertical-strategy)
+                                         (contains? opts :horizontal-strategy)))
+         all (into [] (mapcat #(page-objects doc % include-image-data?
+                                               include-path-segments?) pages))]
      (cond-> (cond->> all
                types (filterv #(contains? types (:type %)))
                (and bbox (not view-operations))
