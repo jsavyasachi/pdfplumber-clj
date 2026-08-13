@@ -24,7 +24,7 @@ for path in sorted(glob.glob(os.path.join(corpus, "*.pdf"))):
             texts, tables, words = [], [], 0
             for page in pdf.pages:
                 texts.append(page.extract_text() or "")
-                tables.extend(page.extract_tables())
+                tables.append(page.extract_tables())
                 words += len(page.extract_words())
             result[name] = {
                 "pages": len(pdf.pages),
