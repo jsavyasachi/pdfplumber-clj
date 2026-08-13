@@ -47,14 +47,23 @@
   (pdf/with-pdf [d (fix/closed-path-pdf)]
     (let [objs (pdf/objects d)
           rects (filter #(= :rect (:type %)) objs)
-          lines (filter #(= :line (:type %)) objs)]
+          lines (filter #(= :line (:type %)) objs)
+          curves (filter #(= :curve (:type %)) objs)]
       (is (= 1 (count rects)))
-      (is (= 8 (count lines)))
+      (is (= 0 (count lines)))
+      (is (= 2 (count curves)))
       (let [r (first rects)]
         (is (approx= 100.0 (:x0 r)))
         (is (approx= 300.0 (:x1 r)))
         (is (approx= 292.0 (:top r)))
         (is (approx= 392.0 (:bottom r)))))))
+
+(deftest path-subpaths-use-single-object-classification
+  (pdf/with-pdf [d (fix/path-classification-pdf)]
+    (let [lines (pdf/lines d)
+          curves (pdf/curves d)]
+      (is (= 1 (count lines)))
+      (is (= 3 (count curves))))))
 
 (deftest rich-graphics-records
   (pdf/with-pdf [d (fix/ruled-pdf)]

@@ -141,6 +141,39 @@
         (.stroke cs)))
     (->bytes doc)))
 
+(defn path-classification-pdf
+  "Single page with line, polyline, multi-cubic, and closed non-rect paths."
+  ^bytes []
+  (with-open [doc (PDDocument.)]
+    (let [page (PDPage. PDRectangle/LETTER)]
+      (.addPage doc page)
+      (with-open [cs (PDPageContentStream. doc page)]
+        (.moveTo cs (float 72) (float 700))
+        (.lineTo cs (float 120) (float 700))
+        (.stroke cs)
+
+        (.moveTo cs (float 72) (float 650))
+        (.lineTo cs (float 120) (float 650))
+        (.lineTo cs (float 168) (float 680))
+        (.stroke cs)
+
+        (.moveTo cs (float 72) (float 600))
+        (.curveTo cs (float 100) (float 630)
+                  (float 140) (float 570)
+                  (float 168) (float 600))
+        (.curveTo cs (float 196) (float 630)
+                  (float 236) (float 570)
+                  (float 264) (float 600))
+        (.stroke cs)
+
+        (.moveTo cs (float 300) (float 700))
+        (.lineTo cs (float 350) (float 700))
+        (.lineTo cs (float 380) (float 740))
+        (.lineTo cs (float 300) (float 740))
+        (.closePath cs)
+        (.stroke cs)))
+    (->bytes doc)))
+
 (defn table-pdf
   "Single US-Letter page with a 2x2 ruled table: vertical rules at x=72/300/540,
    horizontal rules at y=700/670/640, and the cells Date|Amount over
