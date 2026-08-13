@@ -71,6 +71,35 @@
         x1 (apply max xs) bottom (apply max tops)]
     (rich-bbox :rect page-h page-no doctop-offset x0 top x1 bottom attrs)))
 
+(defn- near? [a b]
+  (<= (Math/abs (- (double a) (double b))) orient-tolerance))
+
+(defn- axis-aligned? [[x0 y0] [x1 y1]]
+  (or (near? x0 x1) (near? y0 y1)))
+
+(defn- rect-corners [subpath]
+  (let [points (:points subpath)
+        corners (if (and (= 5 (count points))
+                         (every? true? (map near? (first points) (last points))))
+                  (pop points)
+                  points)]
+    (when (and (:closed? subpath)
+               (not (:has-curve? subpath))
+               (= 4 (count corners))
+               (every? #(apply axis-aligned? %) (partition 2 1 (conj (vec corners) (first corners))))
+               (let [xs (map first corners)
+                     ys (map second corners)
+                     x0 (apply min xs) x1 (apply max xs)
+                     y0 (apply min ys) y1 (apply max ys)
+                     corner-ids (set (map (fn [[x y]]
+                                            [(if (near? x x0) 0 1)
+                                             (if (near? y y0) 0 1)])
+                                          corners))]
+                 (and (not (near? x0 x1))
+                      (not (near? y0 y1))
+                      (= #{[0 0] [0 1] [1 0] [1 1]} corner-ids))))
+      corners)))
+
 (defn- curve-obj [page-h page-no doctop-offset attrs points]
   (let [xs (map first points)
         tops (map #(g/flip-y page-h (second %)) points)
@@ -110,28 +139,40 @@
   "A PDFGraphicsStreamEngine that adds top-left object maps to `out`."
   ^PDFGraphicsStreamEngine [^PDPage page page-no doctop-offset out include-image-data?]
   (let [page-h (double (.getHeight (.getMediaBox page)))
-        st (atom {:cur nil :start nil :lines [] :rects [] :curves []})
+        st (atom {:cur nil :start nil :subpaths [] :rects [] :curves []})
         engine-holder (atom nil)
         flush! (fn []
-                 (let [{:keys [lines rects curves]} @st
+                 (let [{:keys [subpaths rects curves]} @st
                        attrs (paint-attrs ^PDFGraphicsStreamEngine @engine-holder)]
-                   (doseq [[a b] lines] (swap! out conj (line-obj page-h page-no doctop-offset attrs a b)))
+                   (doseq [subpath subpaths]
+                     (if-let [corners (rect-corners subpath)]
+                       (swap! out conj (rect-obj page-h page-no doctop-offset attrs corners))
+                       (do
+                         (doseq [[a b] (partition 2 1 (:points subpath))]
+                           (swap! out conj (line-obj page-h page-no doctop-offset attrs a b)))
+                         (when (:closed? subpath)
+                           (swap! out conj (line-obj page-h page-no doctop-offset attrs
+                                                     (last (:points subpath))
+                                                     (first (:points subpath))))))))
                    (doseq [r rects] (swap! out conj (rect-obj page-h page-no doctop-offset attrs r)))
                    (doseq [c curves] (swap! out conj (curve-obj page-h page-no doctop-offset attrs c)))
-                   (swap! st assoc :lines [] :rects [] :curves [])))
-        clear! (fn [] (swap! st assoc :lines [] :rects [] :curves []))
+                   (swap! st assoc :cur nil :start nil :subpaths [] :rects [] :curves [])))
+        clear! (fn [] (swap! st assoc :cur nil :start nil :subpaths [] :rects [] :curves []))
         engine
         (proxy [PDFGraphicsStreamEngine] [page]
           (appendRectangle [p0 p1 p2 p3]
             (swap! st update :rects conj (mapv pt [p0 p1 p2 p3])))
           (moveTo [x y]
-            (swap! st assoc :cur [x y] :start [x y]))
+            (swap! st (fn [s] (-> s
+                                  (assoc :cur [x y] :start [x y])
+                                  (update :subpaths conj {:points [[x y]] :closed? false})))))
           (lineTo [x y]
             (swap! st (fn [s] (-> s
-                                  (update :lines conj [(:cur s) [x y]])
+                                  (update-in [:subpaths (dec (count (:subpaths s))) :points] conj [x y])
                                   (assoc :cur [x y])))))
           (curveTo [x1 y1 x2 y2 x3 y3]
             (swap! st (fn [s] (-> s
+                                  (assoc-in [:subpaths (dec (count (:subpaths s))) :has-curve?] true)
                                   (update :curves conj [(:cur s) [x1 y1] [x2 y2] [x3 y3]])
                                   (assoc :cur [x3 y3])))))
           (getCurrentPoint []
@@ -139,8 +180,9 @@
               (Point2D$Float. (float x) (float y))))
           (closePath []
             (swap! st (fn [s] (cond-> s
-                                (and (:cur s) (:start s))
-                                (update :lines conj [(:cur s) (:start s)])))))
+                                (and (:cur s) (:start s) (seq (:subpaths s)))
+                                (-> (assoc :cur (:start s))
+                                    (assoc-in [:subpaths (dec (count (:subpaths s))) :closed?] true))))))
           (endPath [] (clear!))
           (strokePath [] (flush!))
           (fillPath [_winding-rule] (flush!))

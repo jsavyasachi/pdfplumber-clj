@@ -102,6 +102,31 @@
         (.addRect cs (float 100) (float 400) (float 200) (float 100)) (.stroke cs)))
     (->bytes doc)))
 
+(defn closed-path-pdf
+  "Single page with a closed rectangle, an open zigzag, and a rotated quadrilateral."
+  ^bytes []
+  (with-open [doc (PDDocument.)]
+    (let [page (PDPage. PDRectangle/LETTER)]
+      (.addPage doc page)
+      (with-open [cs (PDPageContentStream. doc page)]
+        (.moveTo cs (float 100) (float 400))
+        (.lineTo cs (float 300) (float 400))
+        (.lineTo cs (float 300) (float 500))
+        (.lineTo cs (float 100) (float 500))
+        (.closePath cs)
+        (.moveTo cs (float 72) (float 700))
+        (.lineTo cs (float 120) (float 680))
+        (.lineTo cs (float 168) (float 700))
+        (.lineTo cs (float 216) (float 680))
+        (.lineTo cs (float 264) (float 700))
+        (.moveTo cs (float 400) (float 400))
+        (.lineTo cs (float 450) (float 430))
+        (.lineTo cs (float 420) (float 480))
+        (.lineTo cs (float 370) (float 450))
+        (.closePath cs)
+        (.stroke cs)))
+    (->bytes doc)))
+
 (defn curve-pdf
   "Single page with one painted cubic Bézier path."
   ^bytes []

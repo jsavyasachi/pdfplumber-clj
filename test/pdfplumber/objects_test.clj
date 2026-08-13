@@ -43,6 +43,19 @@
           (is (approx= 292.0 (:top r)))
           (is (approx= 392.0 (:bottom r))))))))
 
+(deftest closed-path-rect-extraction
+  (pdf/with-pdf [d (fix/closed-path-pdf)]
+    (let [objs (pdf/objects d)
+          rects (filter #(= :rect (:type %)) objs)
+          lines (filter #(= :line (:type %)) objs)]
+      (is (= 1 (count rects)))
+      (is (= 8 (count lines)))
+      (let [r (first rects)]
+        (is (approx= 100.0 (:x0 r)))
+        (is (approx= 300.0 (:x1 r)))
+        (is (approx= 292.0 (:top r)))
+        (is (approx= 392.0 (:bottom r)))))))
+
 (deftest rich-graphics-records
   (pdf/with-pdf [d (fix/ruled-pdf)]
     (doseq [o (pdf/objects d)]
