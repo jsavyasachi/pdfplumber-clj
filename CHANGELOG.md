@@ -2,6 +2,20 @@
 
 All notable changes to this project are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this project adheres to [Semantic Versioning](https://semver.org/).
 
+## Unreleased
+
+### Fixed
+- Table grid detection accepted a cell when four separate edges happened to cover
+  its corners, with no single edge spanning a side. Two tables side by side on a
+  page merged into one grid through a phantom column in the gap between them.
+- A cell took the words from a band taller than its own row, so each cell held the
+  text of the row below it as well.
+- Ruled edges on a rotated page did not map to the text coordinate space.
+
+### Added
+- The `parity` workflow compares table cell content against Python pdfplumber per
+  page, and reports the files with low recall.
+
 ## [1.0.0] - 2026-08-05
 First stable release. The API and the returned data shapes are settled; breaking
 changes to either now require a major version bump. No breaking changes from
