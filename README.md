@@ -21,7 +21,7 @@ strategy. Download the rows as CSV or JSON. The service processes files in memor
 
 ## Status
 
-Stable (`1.0.0`). Data shapes follow semantic versioning. A breaking change to a
+Stable. Data shapes follow semantic versioning. A breaking change to a
 returned map requires a major bump.
 
 Covers the Python pdfplumber extraction surface for text, words, chars,
@@ -44,13 +44,13 @@ cell content. The repository does not commit the corpus. Run
 deps.edn
 
 ```clojure
-net.clojars.savya/pdfplumber-clj {:mvn/version "1.0.0"}
+net.clojars.savya/pdfplumber-clj {:mvn/version "1.0.1"}
 ```
 
 Leiningen
 
 ```clojure
-[net.clojars.savya/pdfplumber-clj "1.0.0"]
+[net.clojars.savya/pdfplumber-clj "1.0.1"]
 ```
 
 Requires JDK 17+.

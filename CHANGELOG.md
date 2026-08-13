@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this project adheres to [Semantic Versioning](https://semver.org/).
 
-## Unreleased
+## [1.0.1] - 2026-08-13
 
 ### Fixed
 - Table grid detection accepted a cell when four separate edges happened to cover
@@ -11,6 +11,9 @@ All notable changes to this project are documented here. Format follows [Keep a 
 - A cell took the words from a band taller than its own row, so each cell held the
   text of the row below it as well.
 - Ruled edges on a rotated page did not map to the text coordinate space.
+- Ruled edges kept PDF graphics x coordinates while words used coordinates
+  relative to the MediaBox origin. A page whose MediaBox does not start at x 0
+  lost most of its cells.
 
 ### Added
 - The `parity` workflow compares table cell content against Python pdfplumber per
