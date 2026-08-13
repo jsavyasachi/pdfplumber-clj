@@ -109,6 +109,19 @@
     (assoc (rich-bbox :curve page-h page-no doctop-offset x0 top x1 bottom attrs)
            :pts pts)))
 
+(defn- normalized-subpath [subpath]
+  (let [points (:points subpath)
+        ops (:ops subpath)
+        n (count ops)]
+    (if (and (:closed? subpath)
+             (> n 3)
+             (= [:line :close] (subvec ops (- n 2)))
+             (= (nth points (- n 2)) (first points)))
+      (assoc subpath
+             :ops (conj (subvec ops 0 (- n 2)) :close)
+             :points (conj (subvec points 0 (- n 2)) (last points)))
+      subpath)))
+
 (defn- png-bytes ^bytes [^PDImage image]
   (let [out (ByteArrayOutputStream.)]
     (ImageIO/write (.getImage image) "png" out)
@@ -136,15 +149,14 @@
       include-data? (assoc :bytes (png-bytes image)))))
 
 (defn- subpath-obj [page-h page-no doctop-offset attrs subpath]
-  (if-let [corners (rect-corners subpath)]
-    (rect-obj page-h page-no doctop-offset attrs corners)
-    (let [points (:points subpath)]
+  (let [{:keys [points ops] :as subpath} (normalized-subpath subpath)]
+    (if-let [corners (rect-corners subpath)]
+      (rect-obj page-h page-no doctop-offset attrs corners)
       (if (and (not (:has-curve? subpath))
-               (= 2 (count points)))
+               (or (= [:move :line] ops)
+                   (= [:move :line :close] ops)))
         (line-obj page-h page-no doctop-offset attrs (first points) (second points))
-        (curve-obj page-h page-no doctop-offset attrs
-                   (cond-> points
-                     (:closed? subpath) (conj (first points))))))))
+        (curve-obj page-h page-no doctop-offset attrs points)))))
 
 (defn- object-engine
   "A PDFGraphicsStreamEngine that adds top-left object maps to `out`."
@@ -169,15 +181,18 @@
             (swap! st (fn [s] (-> s
                                   (assoc :cur [x y] :start [x y])
                                   (update :subpaths conj {:points [[x y]]
+                                                          :ops [:move]
                                                           :closed? false})))))
           (lineTo [x y]
             (swap! st (fn [s] (-> s
                                   (update-in [:subpaths (dec (count (:subpaths s))) :points] conj [x y])
+                                  (update-in [:subpaths (dec (count (:subpaths s))) :ops] conj :line)
                                   (assoc :cur [x y])))))
           (curveTo [x1 y1 x2 y2 x3 y3]
             (swap! st (fn [s] (-> s
                                   (assoc-in [:subpaths (dec (count (:subpaths s))) :has-curve?] true)
                                   (update-in [:subpaths (dec (count (:subpaths s))) :points] conj [x3 y3])
+                                  (update-in [:subpaths (dec (count (:subpaths s))) :ops] conj :curve)
                                   (assoc :cur [x3 y3])))))
           (getCurrentPoint []
             (let [[x y] (or (:cur @st) [0.0 0.0])]
@@ -186,7 +201,9 @@
             (swap! st (fn [s] (cond-> s
                                 (and (:cur s) (:start s) (seq (:subpaths s)))
                                 (-> (assoc :cur (:start s))
-                                    (assoc-in [:subpaths (dec (count (:subpaths s))) :closed?] true))))))
+                                    (assoc-in [:subpaths (dec (count (:subpaths s))) :closed?] true)
+                                    (update-in [:subpaths (dec (count (:subpaths s))) :points] conj (:start s))
+                                    (update-in [:subpaths (dec (count (:subpaths s))) :ops] conj :close))))))
           (endPath [] (clear!))
           (strokePath [] (flush!))
           (fillPath [_winding-rule] (flush!))

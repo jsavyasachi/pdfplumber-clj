@@ -52,6 +52,9 @@
       (is (= 1 (count rects)))
       (is (= 0 (count lines)))
       (is (= 2 (count curves)))
+      (is (= [[[72.0 92.0] [120.0 112.0] [168.0 92.0] [216.0 112.0] [264.0 92.0]]
+              [[400.0 392.0] [450.0 362.0] [420.0 312.0] [370.0 342.0] [400.0 392.0]]]
+             (mapv :pts curves)))
       (is (= #{[72.0 92.0] [120.0 112.0] [168.0 92.0] [216.0 112.0] [264.0 92.0]
                [400.0 392.0] [450.0 362.0] [420.0 312.0] [370.0 342.0]}
              (set (mapcat :pts curves))))
@@ -67,6 +70,16 @@
           curves (pdf/curves d)]
       (is (= 1 (count lines)))
       (is (= 3 (count curves))))))
+
+(deftest bezier-points-use-segment-endpoints
+  (pdf/with-pdf [d (fix/curve-pdf)]
+    (is (= [[72.0 192.0] [240.0 192.0]]
+           (:pts (first (pdf/curves d)))))))
+
+(deftest redundant-closed-line-is-classified-after-point-normalization
+  (pdf/with-pdf [d (fix/redundant-closed-line-pdf)]
+    (is (= 1 (count (pdf/lines d))))
+    (is (= 0 (count (pdf/curves d))))))
 
 (deftest rich-graphics-records
   (pdf/with-pdf [d (fix/ruled-pdf)]

@@ -141,6 +141,20 @@
         (.stroke cs)))
     (->bytes doc)))
 
+(defn redundant-closed-line-pdf
+  "Single page with a closed path whose final line returns to its start."
+  ^bytes []
+  (with-open [doc (PDDocument.)]
+    (let [page (PDPage. PDRectangle/LETTER)]
+      (.addPage doc page)
+      (with-open [cs (PDPageContentStream. doc page)]
+        (.moveTo cs (float 100) (float 400))
+        (.lineTo cs (float 200) (float 400))
+        (.lineTo cs (float 100) (float 400))
+        (.closePath cs)
+        (.stroke cs)))
+    (->bytes doc)))
+
 (defn path-classification-pdf
   "Single page with line, polyline, multi-cubic, and closed non-rect paths."
   ^bytes []
