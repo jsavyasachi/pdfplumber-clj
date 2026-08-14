@@ -325,6 +325,11 @@
                            (:name c) (:page c) (:recall c)
                            (:python-cells c) (:clj-cells c)
                            (pr-str (:missing-examples c))))))
+      (let [selected-files #{"issue-1279-example.pdf" "chelsea_pdta.pdf"}
+            selected-recalls (for [[name pages] (group-by :name page-cell-recalls)
+                                   :when (contains? selected-files name)]
+                               {:file name :recall (apply min (map :recall pages))})]
+        (println "  selected cell recall:" (sort-by :file selected-recalls)))
       (when (< (count table-count-matches) (count table-rows))
         (println "  table count mismatch:"
                  (mapv (juxt :name #(reduce + 0 (map count (:tables %)))
