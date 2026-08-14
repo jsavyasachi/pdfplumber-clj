@@ -377,7 +377,7 @@
                       (double (or (:text-y-tolerance opts) 3.0)))
       (text/text-from-chars
        cell-chars
-       (cond-> (assoc text-opts :cluster-by-top true)
+       (cond-> (assoc text-opts :cluster-by-top (every? :upright cell-chars))
          (= 90 (:page-rotation opts))
          (assoc :line-dir :ttb :char-dir :ltr
                 :line-dir-rotated :ttb :char-dir-rotated :ltr))))))

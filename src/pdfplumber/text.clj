@@ -379,8 +379,9 @@
                      :expand-ligatures true}
                     (normalize-options opts))
         opts (assoc opts :cluster-by-top
-                    (or (:cluster-by-top opts)
-                        (some #(not (:upright %)) cs)))
+                    (if (contains? opts :cluster-by-top)
+                      (:cluster-by-top opts)
+                      (some #(not (:upright %)) cs)))
         lines (->> cs
                    (partition-by #(select-keys % (into [:upright] (:extra-attrs opts))))
                    (mapcat #(cluster-lines % opts))
