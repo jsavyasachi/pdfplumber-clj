@@ -102,6 +102,21 @@
         (.endText cs)))
     (->bytes doc)))
 
+(defn content-flipped-text-pdf
+  "Single landscape page with text painted through a vertical reflection."
+  ^bytes []
+  (with-open [doc (PDDocument.)]
+    (let [page (PDPage. (PDRectangle. (float 792.0) (float 612.0)))]
+      (.addPage doc page)
+      (with-open [cs (PDPageContentStream. doc page)]
+        (.transform cs (Matrix. 1.0 0.0 0.0 -1.0 72.0 81.502))
+        (.beginText cs)
+        (.setFont cs (helvetica) 12.0)
+        (.newLineAtOffset cs (float 0.0) (float 0.0))
+        (.showText cs "T")
+        (.endText cs)))
+    (->bytes doc)))
+
 (defn page-rotated-90-vertical-text-pdf
   "Single page with a 90-degree page rotation and quarter-turned text."
   ^bytes []

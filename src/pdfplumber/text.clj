@@ -37,21 +37,28 @@
     270 [top (- page-width x1) bottom (- page-width x0)]
     [x0 top x1 bottom]))
 
-(defn- rotate-content-bbox [_raw-bbox
-                           page-height shear-x shear-y translate-x translate-y
-                           glyph-height]
-   [(if (pos? shear-x)
-     translate-x
-     (- translate-x (Math/abs (double shear-y))))
-   (if (neg? shear-y)
-     (- page-height translate-y)
-     (- page-height (+ translate-y glyph-height)))
-   (if (pos? shear-x)
-     (+ translate-x (Math/abs (double shear-y)))
-     translate-x)
-   (if (neg? shear-y)
-     (+ (- page-height translate-y) glyph-height)
-     (- page-height translate-y))])
+(defn- content-bbox [^org.apache.pdfbox.pdmodel.font.PDFont font
+                    page-height [scale-x shear-y shear-x scale-y translate-x translate-y]
+                    glyph-advance]
+  (let [descriptor (.getFontDescriptor font)
+        glyph-scale (max (Math/abs (double scale-x)) (Math/abs (double shear-y))
+                         (Math/abs (double shear-x)) (Math/abs (double scale-y)))
+        descent (if descriptor
+                  (* (double (.getDescent descriptor)) 0.001)
+                  0.0)
+        font-em 1.0
+        advance-space (/ glyph-advance glyph-scale)
+        y0 descent
+        y1 (+ descent font-em)
+        points [[0.0 y0] [advance-space y0]
+                [0.0 y1] [advance-space y1]]
+        xs (map (fn [[x y]] (+ (* scale-x x) (* shear-x y) translate-x)) points)
+        ys (map (fn [[x y]] (+ (* shear-y x) (* scale-y y) translate-y)) points)
+        min-x (reduce min xs)
+        max-x (reduce max xs)
+        min-y (reduce min ys)
+        max-y (reduce max ys)]
+    [min-x (- page-height max-y) max-x (- page-height min-y)]))
 
 (defn- text-for-position [^TextPosition tp]
   (let [unicode (.getUnicode tp)]
@@ -68,6 +75,9 @@
         raw-x0 (double (.getXDirAdj tp))
         w (double (.getWidthDirAdj tp))
         h (double (.getHeightDir tp))
+        content-advance (if (pos? w)
+                          w
+                          (Math/abs (- (double (.getEndY tp)) translate-y)))
         raw-bottom (double (.getYDirAdj tp))
         raw-top (- raw-bottom h)
         [raw-x0 raw-top raw-x1 raw-bottom]
@@ -81,24 +91,22 @@
           [raw-x0 raw-top (+ raw-x0 w) raw-bottom])
         content-horizontal? (>= (Math/abs (double scale-x))
                                 (Math/abs (double shear-y)))
+        determinant (- (* scale-x scale-y) (* shear-y shear-x))
         apply-page-rotation? (and content-horizontal?
                                (contains? #{180 270} rotation))
-        apply-content-rotation? (and (not content-horizontal?)
-                                     (zero? rotation)
-                                     (> page-width page-height))
+        apply-content-rotation? (and (zero? rotation)
+                                     (or (not content-horizontal?)
+                                         (neg? determinant)))
         [x0 top x1 bottom] (cond
                              apply-page-rotation?
                              (rotate-bbox [raw-x0 raw-top raw-x1 raw-bottom]
                                           page-width page-height rotation)
 
                              apply-content-rotation?
-                             (rotate-content-bbox [raw-x0 raw-top raw-x1 raw-bottom]
-                                                  page-height shear-x shear-y
-                                                  translate-x translate-y h)
+                             (content-bbox (.getFont tp) page-height matrix content-advance)
 
                              :else
                              [raw-x0 raw-top raw-x1 raw-bottom])
-        determinant (- (* scale-x scale-y) (* shear-y shear-x))
         upright (and (pos? determinant)
                              (if (contains? #{90 270} rotation)
                        (not content-horizontal?)

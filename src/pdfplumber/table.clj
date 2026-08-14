@@ -359,7 +359,7 @@
                                   (when (str/starts-with? n "text-")
                                     [(keyword (subs n 5)) v]))))
                         opts)]
-    (if (and (every? :upright cell-chars)
+    (if (and (every? #(or (:upright %) (:content-horizontal %)) cell-chars)
              (not word-crosses-cell?))
       (cell-word-text words within?
                       (double (or (:text-y-tolerance opts) 3.0)))

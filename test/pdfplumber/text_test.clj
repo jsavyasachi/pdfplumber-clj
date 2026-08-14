@@ -100,6 +100,19 @@
       (is (< (:top a) (:top b)))
       (is (= ["t" "h"] (mapv :text (pdf/words d)))))))
 
+(deftest quarter-turned-bbox-uses-font-descent
+  (pdf/with-pdf [d (fix/vertical-text-pdf)]
+    (let [c (first (pdf/chars d))]
+      (is (< (:x0 c) 100.0)))))
+
+(deftest content-flipped-bbox-uses-font-box
+  (pdf/with-pdf [d (fix/content-flipped-text-pdf)]
+    (let [c (first (pdf/chars d))]
+      (let [font (PDType1Font. Standard14Fonts$FontName/HELVETICA)
+            descent (* (double (.getDescent (.getFontDescriptor font))) 0.001 12.0)
+            expected-bottom (- 612.0 (- 81.502 (+ descent 12.0)))]
+        (is (< (Math/abs (- (:bottom c) expected-bottom)) 0.01))))))
+
 (deftest rotated-word-sorting-breaks-on-overlapping-space
   (let [chars [{:text " " :x0 10.0 :top 72.0 :x1 20.0 :bottom 74.4 :upright false}
                {:text "t" :x0 10.0 :top 72.0 :x1 20.0 :bottom 75.2 :upright false}
