@@ -415,6 +415,31 @@
             (.endText cs)))))
     (->bytes doc)))
 
+(defn glyph-crossing-cell-table-pdf
+  "Single page with a two-column ruled table whose text crosses the inner rule.
+   Returns a byte[]."
+  ^bytes []
+  (with-open [doc (PDDocument.)]
+    (let [page (PDPage. PDRectangle/LETTER)]
+      (.addPage doc page)
+      (with-open [cs (PDPageContentStream. doc page)]
+        (.setLineWidth cs (float 1.0))
+        (doseq [y [700 650]]
+          (.moveTo cs (float 72) (float y))
+          (.lineTo cs (float 200) (float y))
+          (.stroke cs))
+        (doseq [x [72 100 200]]
+          (.moveTo cs (float x) (float 650))
+          (.lineTo cs (float x) (float 700))
+          (.stroke cs))
+        (let [font (helvetica)]
+          (.beginText cs)
+          (.setFont cs font (float 12))
+          (.newLineAtOffset cs (float 94) (float 672))
+          (.showText cs "AB")
+          (.endText cs))))
+    (->bytes doc)))
+
 (defn polyline-table-pdf
   "Single US-Letter page with a 2x2 table drawn as six open polylines."
   ^bytes []

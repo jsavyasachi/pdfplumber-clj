@@ -293,7 +293,11 @@
       (reduce (fn [lines c]
                 (let [line (peek lines)
                       line-key (if (:cluster-by-top opts) :top :y0)
-                      line-baseline (some-> line first line-key)]
+                      line-baseline (when line
+                                      (line-key ((if (:cluster-transitively opts)
+                                                   last
+                                                   first)
+                                                  line)))]
                   (if (and line-baseline
                            (<= (Math/abs (- (double (get c line-key))
                                             (double line-baseline)))

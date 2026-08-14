@@ -83,6 +83,16 @@
                 :y0 12.0 :upright true}]]
     (is (= "" (cell-text words chars [0.0 0.0 11.0 10.0] {})))))
 
+(deftest cell-text-reconstructs-from-cell-characters
+  (pdf/with-pdf [d (fix/glyph-crossing-cell-table-pdf)]
+    (let [cell-text (private-var 'cell-text)
+          chars (pdf/chars d {:page 1})
+          [a] chars
+          words [{:text "AB" :x0 (:x0 a) :top (:top a)
+                  :x1 (- 100.0 0.00005) :bottom (:bottom a)}]
+          text (cell-text words chars [72.0 92.0 100.0 142.0] {})]
+      (is (= "A" text)))))
+
 (deftest table-rows-preserve-missing-column-slots
   (let [assemble-rows (private-var 'assemble-rows)
         cells [[0.0 0.0 3.0 1.0]

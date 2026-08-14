@@ -356,8 +356,11 @@
                 (and (< (double word-x0) cell-x1)
                      (> (double word-x1) cell-x0)
                      (or (< (double word-x0) cell-x0)
-                         (> (double word-x1) cell-x1))
+                         (>= (double word-x1)
+                             (- cell-x1 coordinate-source-tolerance)))
                      (or (empty? cell-chars)
+                         (<= (Math/abs (- (double word-x1) cell-x1))
+                             coordinate-source-tolerance)
                          (some (fn [{char-x0 :x0 char-top :top char-x1 :x1 char-bottom :bottom}]
                                  (g/contains? bbox [char-x0 char-top char-x1 char-bottom]))
                                cell-chars))))
@@ -377,7 +380,9 @@
                       (double (or (:text-y-tolerance opts) 3.0)))
       (text/text-from-chars
        cell-chars
-       (cond-> (assoc text-opts :cluster-by-top (every? :upright cell-chars))
+       (cond-> (assoc text-opts
+                      :cluster-by-top (every? :upright cell-chars)
+                      :cluster-transitively (every? :upright cell-chars))
          (= 90 (:page-rotation opts))
          (assoc :line-dir :ttb :char-dir :ltr
                 :line-dir-rotated :ttb :char-dir-rotated :ltr))))))
