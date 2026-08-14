@@ -107,6 +107,16 @@
   (pdf/with-pdf [d (fix/page-rotated-text-pdf)]
     (is (= "elif FDP ymmuD" (pdf/text d)))))
 
+(deftest quarter-page-rotation-keeps-horizontal-text-upright
+  (pdf/with-pdf [d (fix/page-rotated-90-vertical-text-pdf)]
+    (is (= "t h" (pdf/text d)))
+    (is (every? :upright (pdf/chars d)))))
+
+(deftest quarter-page-rotation-preserves-vertical-text-direction
+  (pdf/with-pdf [d (fix/page-rotated-90-text-pdf)]
+    (is (= "Dummy PDF file" (pdf/text d)))
+    (is (every? (comp not :upright) (pdf/chars d)))))
+
 (deftest non-breaking-space-separates-words
   (pdf/with-pdf [d (fix/non-breaking-space-text-pdf)]
     (is (= "Broad Agency" (pdf/text d)))))

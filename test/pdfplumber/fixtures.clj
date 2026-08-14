@@ -102,12 +102,43 @@
         (.endText cs)))
     (->bytes doc)))
 
+(defn page-rotated-90-vertical-text-pdf
+  "Single page with a 90-degree page rotation and quarter-turned text."
+  ^bytes []
+  (with-open [doc (PDDocument.)]
+    (let [page (PDPage. (PDRectangle. (float 792.0) (float 612.0)))]
+      (.setRotation page 90)
+      (.addPage doc page)
+      (with-open [cs (PDPageContentStream. doc page)]
+        (.transform cs (Matrix. 0.0 -1.0 1.0 0.0 100.0 700.0))
+        (.beginText cs)
+        (.setFont cs (helvetica) 12.0)
+        (.newLineAtOffset cs (float 0.0) (float 0.0))
+        (.showText cs "t h")
+        (.endText cs)))
+    (->bytes doc)))
+
 (defn page-rotated-text-pdf
   "Single page with a 180-degree page rotation and one text line."
   ^bytes []
   (with-open [doc (PDDocument.)]
     (let [page (PDPage. PDRectangle/LETTER)]
       (.setRotation page 180)
+      (.addPage doc page)
+      (with-open [cs (PDPageContentStream. doc page)]
+        (.beginText cs)
+        (.setFont cs (helvetica) 12.0)
+        (.newLineAtOffset cs (float 72.0) (float 700.0))
+        (.showText cs "Dummy PDF file")
+        (.endText cs)))
+    (->bytes doc)))
+
+(defn page-rotated-90-text-pdf
+  "Single page with a 90-degree page rotation and one text line."
+  ^bytes []
+  (with-open [doc (PDDocument.)]
+    (let [page (PDPage. PDRectangle/LETTER)]
+      (.setRotation page 90)
       (.addPage doc page)
       (with-open [cs (PDPageContentStream. doc page)]
         (.beginText cs)

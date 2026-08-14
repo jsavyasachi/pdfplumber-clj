@@ -91,7 +91,7 @@
                              [raw-x0 raw-top raw-x1 raw-bottom])
         determinant (- (* scale-x scale-y) (* shear-y shear-x))
         upright (and (pos? determinant)
-                     (if (= 270 rotation)
+                             (if (contains? #{90 270} rotation)
                        (not content-horizontal?)
                        content-horizontal?))
         fontname (some-> (.getFont tp) .getName)
@@ -110,6 +110,8 @@
      :size size
      :adv w
      :upright upright
+     :page-rotation rotation
+     :content-horizontal content-horizontal?
      :matrix matrix
      :object-type :char
      ;; Legacy spellings are supported.
@@ -204,12 +206,19 @@
 (defn- direction-value [opts key default]
   (or (get opts key) default))
 
-(defn- directions [opts upright]
+(defn- directions [opts item]
   (let [horizontal-ltr (not= false (:horizontal-ltr opts))
+        upright (:upright item)
         char-dir (direction-value opts :char-dir (if horizontal-ltr :ltr :rtl))
-        line-dir (direction-value opts :line-dir default-line-dir)]
-    [(if upright line-dir (direction-value opts :line-dir-rotated char-dir))
-     (if upright char-dir (direction-value opts :char-dir-rotated line-dir))]))
+        line-dir (direction-value opts :line-dir default-line-dir)
+        page-rotated-horizontal-content?
+        (and (not upright)
+             (= 90 (:page-rotation item))
+             (:content-horizontal item))]
+    (if page-rotated-horizontal-content?
+      [line-dir (if horizontal-ltr :ltr :rtl)]
+      [(if upright line-dir (direction-value opts :line-dir-rotated char-dir))
+       (if upright char-dir (direction-value opts :char-dir-rotated line-dir))])))
 
 (defn- direction-coordinate [item direction]
   (let [item (if (map? item) item (first item))]
@@ -254,7 +263,7 @@
 (defn- cluster-lines
   "Group chars into lines using the configured line direction."
   [chars opts]
-  (let [[line-dir _] (directions opts (:upright (first chars)))]
+  (let [[line-dir _] (directions opts (first chars))]
     (if (and (= :ttb line-dir) (:upright (first chars)))
       (reduce (fn [lines c]
                 (let [line (peek lines)
@@ -304,7 +313,7 @@
   [line opts]
   (let [{:keys [x-tolerance keep-blank-chars extra-attrs
                 split-at-punctuation use-text-flow]} opts
-        [_ char-dir] (directions opts (:upright (first line)))
+        [_ char-dir] (directions opts (first line))
         ordered (if use-text-flow line
                     (sort-by #(direction-sort-key % char-dir) line))]
    (loop [cs ordered, cur [], words []]
