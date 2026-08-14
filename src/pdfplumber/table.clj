@@ -325,18 +325,47 @@
         (recur (reduce disj remaining component) (conj components component)))
       components)))
 
+(defn- cell-word-text [words within? y-tolerance]
+  (->> (filter within? words)
+       (sort-by :top)
+       (reduce (fn [rows word]
+                 (let [row (peek rows)
+                       row-top (some-> row first :top)]
+                   (if (and row-top
+                            (<= (Math/abs (- (double (:top word))
+                                             (double row-top)))
+                                y-tolerance))
+                     (conj (pop rows) (conj row word))
+                     (conj rows [word]))))
+               [])
+       (mapcat #(sort-by :x0 %))
+       (map :text)
+       (str/join " ")))
+
 (defn- cell-text [words char-records bbox opts]
-  (let [within? #(g/within? bbox (g/center [(:x0 %) (:top %) (:x1 %) (:bottom %)]))
-        cell-chars (filter within? char-records)]
-    (if (every? :upright cell-chars)
-      (->> words
-           (filter within?)
-           (sort-by (juxt :top :x0))
-           (map :text)
-           (str/join " "))
+  (let [[cell-x0 cell-top cell-x1 cell-bottom] bbox
+        within? #(g/within? bbox (g/center [(:x0 %) (:top %) (:x1 %) (:bottom %)]))
+        cell-chars (filter within? char-records)
+        word-crosses-cell?
+        (some (fn [{word-x0 :x0 word-x1 :x1}]
+                (and (< (double word-x0) cell-x1)
+                     (> (double word-x1) cell-x0)
+                     (or (< (double word-x0) cell-x0)
+                         (> (double word-x1) cell-x1))))
+              words)
+        text-opts (into {}
+                        (keep (fn [[k v]]
+                                (let [n (name k)]
+                                  (when (str/starts-with? n "text-")
+                                    [(keyword (subs n 5)) v]))))
+                        opts)]
+    (if (and (every? :upright cell-chars)
+             (not word-crosses-cell?))
+      (cell-word-text words within?
+                      (double (or (:text-y-tolerance opts) 3.0)))
       (text/text-from-chars
        cell-chars
-       (cond-> opts
+       (cond-> text-opts
          (= 90 (:page-rotation opts))
          (assoc :line-dir :ttb :char-dir :ltr
                 :line-dir-rotated :ttb :char-dir-rotated :ltr))))))

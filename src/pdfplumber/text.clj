@@ -53,6 +53,15 @@
      (+ (- page-height translate-y) glyph-height)
      (- page-height translate-y))])
 
+(defn- text-for-position [^TextPosition tp]
+  (let [unicode (.getUnicode tp)]
+    (if (seq unicode)
+      unicode
+      (or (some #(.toUnicode ^org.apache.pdfbox.pdmodel.font.PDFont
+                             (.getFont tp) (int %))
+                (.getCharacterCodes tp))
+          ""))))
+
 (defn- tp->char [^TextPosition tp page-no page-width page-height rotation doctop-offset]
   (let [[scale-x shear-y shear-x scale-y translate-x translate-y :as matrix]
         (matrix-values (.getTextMatrix tp))
@@ -96,7 +105,7 @@
                        content-horizontal?))
         fontname (some-> (.getFont tp) .getName)
         size (double (.getFontSizeInPt tp))]
-    {:text (.getUnicode tp)
+    {:text (text-for-position tp)
      :x0 x0
      :top top
      :x1 x1

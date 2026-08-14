@@ -3,7 +3,10 @@
             [clojure.string :as str]
             [pdfplumber.core :as pdf]
             [pdfplumber.fixtures :as fix]
-            [pdfplumber.text :as text]))
+            [pdfplumber.text :as text])
+  (:import [org.apache.pdfbox.pdmodel.font PDType1Font Standard14Fonts$FontName]
+           [org.apache.pdfbox.text TextPosition]
+           [org.apache.pdfbox.util Matrix]))
 
 (deftest chars-extraction
   (pdf/with-pdf [d (fix/simple-text-pdf)]
@@ -180,6 +183,15 @@
           deduped (dedupe-var d)]
       (is (= 1 (count deduped)))
       (is (< (Math/abs (- 72.0 (:x0 (first deduped)))) 0.1)))))
+
+(deftest empty-unicode-uses-character-code-mapping
+  (let [tp->char (ns-resolve 'pdfplumber.text 'tp->char)
+        font (PDType1Font. Standard14Fonts$FontName/HELVETICA)
+        tp (TextPosition. 0 612.0 792.0
+                           (Matrix/getTranslateInstance 72.0 700.0)
+                           12.0 12.0 12.0 12.0 12.0
+                           "" (int-array [65]) font 12.0 0)]
+    (is (= "A" (:text (tp->char tp 1 612.0 792.0 0 0.0))))))
 
 (deftest simple-text-entry-point
   (let [simple-var (ns-resolve 'pdfplumber.core 'extract-text-simple)]
