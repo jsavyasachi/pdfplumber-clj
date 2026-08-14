@@ -11,9 +11,11 @@
             [clojure.string :as str])
   (:import [org.apache.pdfbox.pdmodel PDDocument PDPage]
            [org.apache.pdfbox.contentstream PDFGraphicsStreamEngine]
-           [org.apache.pdfbox.contentstream.operator Operator OperatorProcessor]
-           [org.apache.pdfbox.contentstream.operator.graphics AppendRectangleToPath]
-           [org.apache.pdfbox.cos COSName COSNumber]
+           [org.apache.pdfbox.contentstream.operator OperatorProcessor]
+           [org.apache.pdfbox.contentstream.operator.graphics AppendRectangleToPath
+            CurveTo DrawObject LineTo MoveTo]
+           [org.apache.pdfbox.contentstream.operator.state Concatenate Restore Save]
+           [org.apache.pdfbox.cos COSFloat COSName COSNumber]
            [org.apache.pdfbox.pdmodel.graphics.image PDImage]
            [org.apache.pdfbox.pdmodel.graphics.color PDColor]
            [org.apache.pdfbox.pdmodel.graphics.state PDGraphicsState]
@@ -36,6 +38,44 @@
 
 (defn- pdf-float-point [x y]
   [(pdf-float->double x) (pdf-float->double y)])
+
+(defn- multiply-ctm [[a b c d e f] [aa bb cc dd ee ff]]
+  [(+ (* a aa) (* c bb))
+   (+ (* b aa) (* d bb))
+   (+ (* a cc) (* c dd))
+   (+ (* b cc) (* d dd))
+   (+ (* a ee) (* c ff) e)
+   (+ (* b ee) (* d ff) f)])
+
+(defn- transform-point [ctm [x y]]
+  (let [[a b c d e f] ctm]
+    [(+ (* a x) (* c y) e)
+     (+ (* b x) (* d y) f)]))
+
+(defn- cos-number-value [value]
+  (if (instance? COSFloat value)
+    (let [out (ByteArrayOutputStream.)]
+      (.writePDF ^COSFloat value out)
+      (let [text (String. (.toByteArray out) "ISO-8859-1")]
+        (Double/parseDouble text)))
+    (double (.floatValue ^COSNumber value))))
+
+(defn- precise-number? [value]
+  (and (instance? COSFloat value)
+       (let [out (ByteArrayOutputStream.)]
+         (.writePDF ^COSFloat value out)
+         (let [text (String. (.toByteArray out) "ISO-8859-1")]
+           (not= text (Float/toString (.floatValue ^COSFloat value)))))))
+
+(defn- precise-operands? [operands]
+  (some precise-number? operands))
+
+(defn- transformed-ctm? [ctm]
+  (not= ctm [1.0 0.0 0.0 1.0 0.0 0.0]))
+
+(defn- operand-numbers [operands]
+  (when (every? #(instance? COSNumber %) operands)
+    (mapv cos-number-value operands)))
 
 (defn- pt [^Point2D p] [(pdf-float->double (.getX p))
                         (pdf-float->double (.getY p))])
@@ -74,8 +114,10 @@
                           :else :other))))
 
 (defn- rect-obj [page-h page-no doctop-offset attrs corners source]
-  (let [xs (map first corners)
-        tops (if (and source
+  (let [corners (or (:precise-corners source) corners)
+        xs (map first corners)
+        tops (if (and (nil? (:precise-corners source))
+                      source
                       (:identity-ctm? source)
                       (neg? (:height source)))
                (map #(g/flip-y page-h %)
@@ -146,8 +188,10 @@
     (.toByteArray out)))
 
 (defn- image-obj [page-h page-no ^PDImage image ^Matrix ctm include-data?]
-  (let [corners (map (fn [[x y]] (pt (.transformPoint ctm (float x) (float y))))
-                     [[0 0] [1 0] [0 1] [1 1]])
+  (let [corners (if (vector? ctm)
+                  (map #(transform-point ctm %) [[0 0] [1 0] [0 1] [1 1]])
+                  (map (fn [[x y]] (pt (.transformPoint ctm (float x) (float y))))
+                       [[0 0] [1 0] [0 1] [1 1]]))
         xs (map first corners)
         tops (map #(g/flip-y page-h (second %)) corners)
         colorspace (some-> image .getColorSpace .getName)
@@ -219,6 +263,12 @@
   (let [page-h (pdf-float->double (.getHeight (.getMediaBox page)))
         st (atom {:cur nil :start nil :subpaths [] :rects []})
         pending-rectangle (atom nil)
+        precise-ctm (atom [1.0 0.0 0.0 1.0 0.0 0.0])
+        precise-ctm-stack (atom [])
+        initial-ctm? (atom true)
+        precise-ctm? (atom false)
+        pending-path (atom nil)
+        pending-image-ctm (atom nil)
         engine-holder (atom nil)
         flush! (fn []
                  (let [{:keys [subpaths rects]} @st
@@ -246,25 +296,38 @@
                                             :extra-close? false
                                             :source source})))
           (moveTo [x y]
-            (swap! st (fn [s] (-> s
-                                  (assoc :cur (pdf-float-point x y)
-                                         :start (pdf-float-point x y))
-                                  (update :subpaths conj {:points [(pdf-float-point x y)]
-                                                          :ops [:move]
-                                                          :closed? false})))))
+            (let [point (or (when (= :move (:kind @pending-path))
+                              (:point @pending-path))
+                            (pdf-float-point x y))]
+              (reset! pending-path nil)
+              (swap! st (fn [s] (-> s
+                                    (assoc :cur point :start point)
+                                    (update :subpaths conj {:points [point]
+                                                            :ops [:move]
+                                                            :closed? false}))))))
           (lineTo [x y]
-            (swap! st (fn [s] (-> s
-                                  (update-in [:subpaths (dec (count (:subpaths s))) :points]
-                                             conj (pdf-float-point x y))
-                                  (update-in [:subpaths (dec (count (:subpaths s))) :ops] conj :line)
-                                  (assoc :cur (pdf-float-point x y))))))
+            (let [point (or (when (= :line (:kind @pending-path))
+                              (:point @pending-path))
+                            (pdf-float-point x y))]
+              (reset! pending-path nil)
+              (swap! st (fn [s] (-> s
+                                    (update-in [:subpaths (dec (count (:subpaths s))) :points]
+                                               conj point)
+                                    (update-in [:subpaths (dec (count (:subpaths s))) :ops] conj :line)
+                                    (assoc :cur point))))))
           (curveTo [x1 y1 x2 y2 x3 y3]
-            (swap! st (fn [s] (-> s
-                                  (assoc-in [:subpaths (dec (count (:subpaths s))) :has-curve?] true)
-                                  (update-in [:subpaths (dec (count (:subpaths s))) :points]
-                                             conj (pdf-float-point x3 y3))
-                                  (update-in [:subpaths (dec (count (:subpaths s))) :ops] conj :curve)
-                                  (assoc :cur (pdf-float-point x3 y3))))))
+            (let [points (or (when (= :curve (:kind @pending-path))
+                               (:points @pending-path))
+                             [(pdf-float-point x1 y1)
+                              (pdf-float-point x2 y2)
+                              (pdf-float-point x3 y3)])]
+              (reset! pending-path nil)
+              (swap! st (fn [s] (-> s
+                                    (assoc-in [:subpaths (dec (count (:subpaths s))) :has-curve?] true)
+                                    (update-in [:subpaths (dec (count (:subpaths s))) :points]
+                                               conj (last points))
+                                    (update-in [:subpaths (dec (count (:subpaths s))) :ops] conj :curve)
+                                    (assoc :cur (last points)))))))
           (getCurrentPoint []
             (let [[x y] (or (:cur @st) [0.0 0.0])]
               (Point2D$Float. (float x) (float y))))
@@ -282,32 +345,119 @@
           (fillPath [_winding-rule] (flush!))
           (fillAndStrokePath [_winding-rule] (flush!))
           (drawImage [pd-image]
-            (let [graphics-state (.getGraphicsState ^PDFGraphicsStreamEngine @engine-holder)]
+            (let [ctm (or @pending-image-ctm
+                          (.getCurrentTransformationMatrix
+                           (.getGraphicsState ^PDFGraphicsStreamEngine @engine-holder)))
+                  _ (reset! pending-image-ctm nil)]
               (swap! out conj
                      (image-obj page-h page-no pd-image
-                                (.getCurrentTransformationMatrix graphics-state)
+                                ctm
                                 include-image-data?))))
           (clip [_winding-rule])
           (shadingFill [_shading-name]))]
     (clojure.core/reset! engine-holder engine)
-    (let [rectangle-processor (AppendRectangleToPath. engine)]
-      (.addOperator engine
-                    (proxy [OperatorProcessor] [engine]
-                      (process [_ operands]
-                        (if (and (= 4 (count operands))
-                                 (every? #(instance? COSNumber %) operands))
-                          (let [[_ y _ height] operands]
-                            (reset! pending-rectangle
-                                    {:y (pdf-float->double (.floatValue ^COSNumber y))
-                                     :height (pdf-float->double (.floatValue ^COSNumber height))
-                                     :identity-ctm? (.equals
-                                                     (.getCurrentTransformationMatrix
-                                                      (.getGraphicsState ^PDFGraphicsStreamEngine engine))
-                                                     (Matrix.))}))
-                          (reset! pending-rectangle nil))
-                        (.process rectangle-processor (Operator/getOperator "re") operands))
-                      (getName [] "re"))))
-    engine))
+    (let [rectangle-processor (AppendRectangleToPath. engine)
+          curve-processor (CurveTo. engine)
+          draw-processor (DrawObject. engine)
+          line-processor (LineTo. engine)
+          move-processor (MoveTo. engine)
+          concatenate-processor (Concatenate. engine)
+          restore-processor (Restore. engine)
+          save-processor (Save. engine)]
+      (letfn [(register! [name handler]
+                (.addOperator engine
+                              (proxy [OperatorProcessor] [engine]
+                                (process [operator operands]
+                                  (handler operator operands))
+                                (getName [] name))))]
+        (register! "q"
+                   (fn [operator operands]
+                     (swap! precise-ctm-stack conj @precise-ctm)
+                     (.process save-processor operator operands)))
+        (register! "Q"
+                   (fn [operator operands]
+                     (.process restore-processor operator operands)
+                     (reset! precise-ctm (or (peek @precise-ctm-stack)
+                                             [1.0 0.0 0.0 1.0 0.0 0.0]))
+                     (swap! precise-ctm-stack pop)))
+        (register! "cm"
+                   (fn [operator operands]
+                     (when-let [numbers (operand-numbers operands)]
+                       (when (= 6 (count numbers))
+                         (let [precise? (precise-operands? operands)
+                               numbers (if (or @initial-ctm? (not precise?))
+                                         (mapv #(pdf-float->double (float %)) numbers)
+                                         numbers)]
+                           (swap! precise-ctm multiply-ctm numbers)
+                           (when (and precise? (not @initial-ctm?))
+                             (reset! precise-ctm? true))))
+                       (reset! initial-ctm? false))
+                     (.process concatenate-processor operator operands)))
+        (register! "m"
+                   (fn [operator operands]
+                     (when-let [numbers (operand-numbers operands)]
+                       (if (and (= 2 (count numbers))
+                                (or (precise-operands? operands) @precise-ctm?)
+                                (transformed-ctm? @precise-ctm))
+                         (reset! pending-path
+                                 {:kind :move
+                                  :point (transform-point @precise-ctm numbers)})
+                         (reset! pending-path nil)))
+                     (.process move-processor operator operands)))
+        (register! "l"
+                   (fn [operator operands]
+                     (when-let [numbers (operand-numbers operands)]
+                       (if (and (= 2 (count numbers))
+                                (or (precise-operands? operands) @precise-ctm?)
+                                (transformed-ctm? @precise-ctm))
+                         (reset! pending-path
+                                 {:kind :line
+                                  :point (transform-point @precise-ctm numbers)})
+                         (reset! pending-path nil)))
+                     (.process line-processor operator operands)))
+        (register! "c"
+                   (fn [operator operands]
+                     (when-let [numbers (operand-numbers operands)]
+                       (if (and (= 6 (count numbers))
+                                (or (precise-operands? operands) @precise-ctm?)
+                                (transformed-ctm? @precise-ctm))
+                         (reset! pending-path
+                                 {:kind :curve
+                                  :points (mapv #(transform-point @precise-ctm %)
+                                                (partition 2 numbers))})
+                         (reset! pending-path nil)))
+                     (.process curve-processor operator operands)))
+        (register! "re"
+                   (fn [operator operands]
+                     (if-let [numbers (operand-numbers operands)]
+                       (if (and (= 4 (count numbers))
+                                (or (precise-operands? operands) @precise-ctm?)
+                                (transformed-ctm? @precise-ctm)
+                                (not (neg? (nth numbers 3))))
+                         (let [[x y width height] numbers]
+                           (reset! pending-rectangle
+                                   {:precise-corners
+                                    (mapv #(transform-point @precise-ctm %)
+                                          [[x y]
+                                           [(+ x width) y]
+                                           [(+ x width) (+ y height)]
+                                           [x (+ y height)]])}))
+                         (let [[_ y _ height] operands]
+                           (reset! pending-rectangle
+                                   {:y (pdf-float->double (.floatValue ^COSNumber y))
+                                    :height (pdf-float->double (.floatValue ^COSNumber height))
+                                    :identity-ctm? (.equals
+                                                    (.getCurrentTransformationMatrix
+                                                     (.getGraphicsState ^PDFGraphicsStreamEngine engine))
+                                                    (Matrix.))})))
+                       (reset! pending-rectangle nil))
+                     (.process rectangle-processor operator operands)))
+        (register! "Do"
+                   (fn [operator operands]
+                     (when @precise-ctm?
+                       (reset! pending-image-ctm @precise-ctm))
+                     (.process draw-processor operator operands))))
+    engine)))
 
 (defn- page-display-height [^PDDocument doc ^long p]
   (let [page (.getPage doc (dec (int p)))
