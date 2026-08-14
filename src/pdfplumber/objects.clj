@@ -11,7 +11,9 @@
             [clojure.string :as str])
   (:import [org.apache.pdfbox.pdmodel PDDocument PDPage]
            [org.apache.pdfbox.contentstream PDFGraphicsStreamEngine]
-           [org.apache.pdfbox.cos COSName]
+           [org.apache.pdfbox.contentstream.operator Operator OperatorProcessor]
+           [org.apache.pdfbox.contentstream.operator.graphics AppendRectangleToPath]
+           [org.apache.pdfbox.cos COSName COSNumber]
            [org.apache.pdfbox.pdmodel.graphics.image PDImage]
            [org.apache.pdfbox.pdmodel.graphics.color PDColor]
            [org.apache.pdfbox.pdmodel.graphics.state PDGraphicsState]
@@ -22,7 +24,6 @@
             PDField PDSignatureField PDTerminalField PDTextField]
            [org.apache.pdfbox.util Matrix]
            [java.awt.geom Point2D Point2D$Float]
-           [java.math BigDecimal RoundingMode]
            [java.io ByteArrayOutputStream]
            [javax.imageio ImageIO]))
 
@@ -35,9 +36,6 @@
 
 (defn- pdf-float-point [x y]
   [(pdf-float->double x) (pdf-float->double y)])
-
-(defn- pdf-coordinate [value]
-  (.doubleValue (.setScale (BigDecimal. (double value)) 3 RoundingMode/HALF_UP)))
 
 (defn- pt [^Point2D p] [(pdf-float->double (.getX p))
                         (pdf-float->double (.getY p))])
@@ -75,9 +73,14 @@
                           (<= (- hi-x lo-x) orient-tolerance) :vertical
                           :else :other))))
 
-(defn- rect-obj [page-h page-no doctop-offset attrs corners]
-  (let [xs (map #(pdf-coordinate (first %)) corners)
-        tops (map #(pdf-coordinate (g/flip-y page-h (second %))) corners)
+(defn- rect-obj [page-h page-no doctop-offset attrs corners source]
+  (let [xs (map first corners)
+        tops (if (and source
+                      (:identity-ctm? source)
+                      (neg? (:height source)))
+               (map #(g/flip-y page-h %)
+                    [(:y source) (+ (:y source) (:height source))])
+               (map #(g/flip-y page-h (second %)) corners))
         x0 (apply min xs) top (apply min tops)
         x1 (apply max xs) bottom (apply max tops)]
     (rich-bbox :rect page-h page-no doctop-offset x0 top x1 bottom attrs)))
@@ -203,7 +206,7 @@
   (let [{:keys [points ops] :as subpath} (normalized-subpath subpath)]
     (when (seq points)
       (if-let [corners (rect-corners subpath)]
-        (rect-obj page-h page-no doctop-offset attrs corners)
+        (rect-obj page-h page-no doctop-offset attrs corners nil)
         (if (and (not (:has-curve? subpath))
                  (or (= [:move :line] ops)
                      (= [:move :line :close] ops)))
@@ -215,6 +218,7 @@
   ^PDFGraphicsStreamEngine [^PDPage page page-no doctop-offset out include-image-data?]
   (let [page-h (pdf-float->double (.getHeight (.getMediaBox page)))
         st (atom {:cur nil :start nil :subpaths [] :rects []})
+        pending-rectangle (atom nil)
         engine-holder (atom nil)
         flush! (fn []
                  (let [{:keys [subpaths rects]} @st
@@ -225,19 +229,22 @@
                    (doseq [subpath subpaths]
                      (when-let [object (subpath-obj page-h page-no doctop-offset attrs subpath)]
                        (swap! out conj object)))
-                   (doseq [{:keys [corners extra-close?]} rects]
+                   (doseq [{:keys [corners extra-close? source]} rects]
                      (swap! out conj
                             (if extra-close?
                               (curve-obj page-h page-no doctop-offset attrs
                                          (conj corners (first corners) (first corners)))
-                              (rect-obj page-h page-no doctop-offset attrs corners))))
+                              (rect-obj page-h page-no doctop-offset attrs corners source))))
                    (swap! st assoc :cur nil :start nil :subpaths [] :rects [])))
         clear! (fn [] (swap! st assoc :cur nil :start nil :subpaths [] :rects []))
         engine
         (proxy [PDFGraphicsStreamEngine] [page]
           (appendRectangle [p0 p1 p2 p3]
-            (swap! st update :rects conj {:corners (mapv pt [p0 p1 p2 p3])
-                                          :extra-close? false}))
+            (let [source @pending-rectangle]
+              (reset! pending-rectangle nil)
+              (swap! st update :rects conj {:corners (mapv pt [p0 p1 p2 p3])
+                                            :extra-close? false
+                                            :source source})))
           (moveTo [x y]
             (swap! st (fn [s] (-> s
                                   (assoc :cur (pdf-float-point x y)
@@ -283,6 +290,23 @@
           (clip [_winding-rule])
           (shadingFill [_shading-name]))]
     (clojure.core/reset! engine-holder engine)
+    (let [rectangle-processor (AppendRectangleToPath. engine)]
+      (.addOperator engine
+                    (proxy [OperatorProcessor] [engine]
+                      (process [_ operands]
+                        (if (and (= 4 (count operands))
+                                 (every? #(instance? COSNumber %) operands))
+                          (let [[_ y _ height] operands]
+                            (reset! pending-rectangle
+                                    {:y (pdf-float->double (.floatValue ^COSNumber y))
+                                     :height (pdf-float->double (.floatValue ^COSNumber height))
+                                     :identity-ctm? (.equals
+                                                     (.getCurrentTransformationMatrix
+                                                      (.getGraphicsState ^PDFGraphicsStreamEngine engine))
+                                                     (Matrix.))}))
+                          (reset! pending-rectangle nil))
+                        (.process rectangle-processor (Operator/getOperator "re") operands))
+                      (getName [] "re"))))
     engine))
 
 (defn- page-display-height [^PDDocument doc ^long p]

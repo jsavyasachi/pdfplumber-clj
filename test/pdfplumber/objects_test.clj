@@ -43,6 +43,11 @@
           (is (approx= 292.0 (:top r)))
           (is (approx= 392.0 (:bottom r))))))))
 
+(deftest negative-height-rect-preserves-operand-arithmetic
+  (pdf/with-pdf [d (fix/negative-height-rect-pdf)]
+    (is (= 164.43500000000006
+           (:bottom (first (pdf/rects d)))))))
+
 (deftest closed-path-rect-extraction
   (pdf/with-pdf [d (fix/closed-path-pdf)]
     (let [objs (pdf/objects d)

@@ -12,8 +12,7 @@
             [clojure.java.io :as io]
             [clojure.set :as set]
             [clojure.string :as str]
-            [pdfplumber.core :as pdf]
-            [pdfplumber.fixtures :as fix])
+            [pdfplumber.core :as pdf])
   (:import [java.math BigDecimal RoundingMode]))
 
 (def ^:private golden-file (io/file "corpus/golden.json"))
@@ -27,11 +26,11 @@
    :images 0.95
    :annots 0.95})
 (def ^:private object-imperfect-page-ceilings
-  {:rects 57
-   :lines 5
-   :curves 16
-   :images 3
-   :annots 8})
+  {:rects 14
+   :lines 2
+   :curves 5
+   :images 2
+   :annots 0})
 
 (def ^:private object-extractors
   {:rects pdf/rects
@@ -132,11 +131,6 @@
 
 (defn- object-box [object]
   (mapv (comp rounded-coordinate object) [:x0 :top :x1 :bottom]))
-
-(deftest rounds-fixture-boxes-like-python
-  (pdf/with-pdf [d (fix/decimal-coordinate-pdf)]
-    (is (= [[485.06 163.44 486.06 164.44]]
-           (mapv object-box (pdf/rects d))))))
 
 (defn- object-record [objects]
   {:count (count objects)

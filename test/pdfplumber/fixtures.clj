@@ -241,14 +241,14 @@
         (.addRect cs (float 100) (float 400) (float 200) (float 100)) (.stroke cs)))
     (->bytes doc)))
 
-(defn decimal-coordinate-pdf
-  "Single page with a stroked rectangle whose x coordinate has three decimal places."
+(defn negative-height-rect-pdf
+  "Single page with a rectangle operator whose height is negative."
   ^bytes []
   (with-open [doc (PDDocument.)]
-    (let [page (PDPage. PDRectangle/LETTER)]
+    (let [page (PDPage. (PDRectangle. (float 519.0) (float 680.0)))]
       (.addPage doc page)
       (with-open [cs (PDPageContentStream. doc page)]
-        (.addRect cs (float 485.055) (float 627.565) (float 1.0) (float 1.0))
+        (.addRect cs (float 402.52) (float 517.039) (float 90.709) (float -1.474))
         (.stroke cs)))
     (->bytes doc)))
 
