@@ -76,6 +76,25 @@
     (is (= [[72.0 192.0] [240.0 192.0]]
            (:pts (first (pdf/curves d)))))))
 
+(deftest extra-close-keeps-rectangle-as-curve
+  (pdf/with-pdf [d (fix/rectangle-with-extra-close-pdf)]
+    (is (= 0 (count (pdf/rects d))))
+    (is (= 1 (count (pdf/curves d))))))
+
+(deftest narrow-axis-aligned-path-is-a-rectangle
+  (pdf/with-pdf [d (fix/narrow-rectangle-pdf)]
+    (is (= 1 (count (pdf/rects d))))
+    (is (= 0 (count (pdf/curves d))))))
+
+(deftest standalone-move-only-path-creates-a-curve
+  (pdf/with-pdf [d (fix/move-only-path-pdf)]
+    (is (= 1 (count (pdf/curves d))))))
+
+(deftest trailing-move-only-subpath-does-not-create-an-object
+  (pdf/with-pdf [d (fix/trailing-move-path-pdf)]
+    (is (= 1 (count (pdf/lines d))))
+    (is (= 0 (count (pdf/curves d))))))
+
 (deftest redundant-closed-line-is-classified-after-point-normalization
   (pdf/with-pdf [d (fix/redundant-closed-line-pdf)]
     (is (= 1 (count (pdf/lines d))))

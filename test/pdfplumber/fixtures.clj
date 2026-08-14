@@ -293,6 +293,57 @@
         (.stroke cs)))
     (->bytes doc)))
 
+(defn rectangle-with-extra-close-pdf
+  "Single page with a rectangle followed by an extra close-path operator."
+  ^bytes []
+  (with-open [doc (PDDocument.)]
+    (let [page (PDPage. PDRectangle/LETTER)]
+      (.addPage doc page)
+      (with-open [cs (PDPageContentStream. doc page)]
+        (.addRect cs (float 100) (float 400) (float 200) (float 100))
+        (.closePath cs)
+        (.stroke cs)))
+    (->bytes doc)))
+
+(defn narrow-rectangle-pdf
+  "Single page with a narrow closed rectangle."
+  ^bytes []
+  (with-open [doc (PDDocument.)]
+    (let [page (PDPage. PDRectangle/LETTER)]
+      (.addPage doc page)
+      (with-open [cs (PDPageContentStream. doc page)]
+        (.moveTo cs (float 100.0) (float 400.0))
+        (.lineTo cs (float 100.1) (float 400.0))
+        (.lineTo cs (float 100.1) (float 500.0))
+        (.lineTo cs (float 100.0) (float 500.0))
+        (.closePath cs)
+        (.stroke cs)))
+    (->bytes doc)))
+
+(defn move-only-path-pdf
+  "Single page with a move-only path followed by stroke."
+  ^bytes []
+  (with-open [doc (PDDocument.)]
+    (let [page (PDPage. PDRectangle/LETTER)]
+      (.addPage doc page)
+      (with-open [cs (PDPageContentStream. doc page)]
+        (.moveTo cs (float 100) (float 400))
+        (.stroke cs)))
+    (->bytes doc)))
+
+(defn trailing-move-path-pdf
+  "Single page with a painted path followed by a move-only subpath."
+  ^bytes []
+  (with-open [doc (PDDocument.)]
+    (let [page (PDPage. PDRectangle/LETTER)]
+      (.addPage doc page)
+      (with-open [cs (PDPageContentStream. doc page)]
+        (.moveTo cs (float 100) (float 400))
+        (.lineTo cs (float 200) (float 400))
+        (.moveTo cs (float 300) (float 400))
+        (.stroke cs)))
+    (->bytes doc)))
+
 (defn redundant-closed-line-pdf
   "Single page with a closed path whose final line returns to its start."
   ^bytes []

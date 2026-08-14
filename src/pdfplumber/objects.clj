@@ -92,11 +92,15 @@
                      x0 (apply min xs) x1 (apply max xs)
                      y0 (apply min ys) y1 (apply max ys)
                      corner-ids (set (map (fn [[x y]]
-                                            [(if (near? x x0) 0 1)
-                                             (if (near? y y0) 0 1)])
+                                            [(if (< (Math/abs (- (double x) (double x0)))
+                                                   (Math/abs (- (double x) (double x1))))
+                                               0 1)
+                                             (if (< (Math/abs (- (double y) (double y0)))
+                                                   (Math/abs (- (double y) (double y1))))
+                                               0 1)])
                                           corners))]
-                 (and (not (near? x0 x1))
-                      (not (near? y0 y1))
+                 (and (not= x0 x1)
+                      (not= y0 y1)
                       (= #{[0 0] [0 1] [1 0] [1 1]} corner-ids))))
       corners)))
 
@@ -150,13 +154,14 @@
 
 (defn- subpath-obj [page-h page-no doctop-offset attrs subpath]
   (let [{:keys [points ops] :as subpath} (normalized-subpath subpath)]
-    (if-let [corners (rect-corners subpath)]
-      (rect-obj page-h page-no doctop-offset attrs corners)
-      (if (and (not (:has-curve? subpath))
-               (or (= [:move :line] ops)
-                   (= [:move :line :close] ops)))
-        (line-obj page-h page-no doctop-offset attrs (first points) (second points))
-        (curve-obj page-h page-no doctop-offset attrs points)))))
+    (when (seq points)
+      (if-let [corners (rect-corners subpath)]
+        (rect-obj page-h page-no doctop-offset attrs corners)
+        (if (and (not (:has-curve? subpath))
+                 (or (= [:move :line] ops)
+                     (= [:move :line :close] ops)))
+          (line-obj page-h page-no doctop-offset attrs (first points) (second points))
+          (curve-obj page-h page-no doctop-offset attrs points))))))
 
 (defn- object-engine
   "A PDFGraphicsStreamEngine that adds top-left object maps to `out`."
@@ -166,17 +171,26 @@
         engine-holder (atom nil)
         flush! (fn []
                  (let [{:keys [subpaths rects]} @st
+                       subpaths (if (= 1 (count subpaths))
+                                  subpaths
+                                  (remove #(= 1 (count (:points %))) subpaths))
                        attrs (paint-attrs ^PDFGraphicsStreamEngine @engine-holder)]
                    (doseq [subpath subpaths]
-                     (swap! out conj (subpath-obj page-h page-no doctop-offset attrs subpath)))
-                   (doseq [r rects]
-                     (swap! out conj (rect-obj page-h page-no doctop-offset attrs r)))
+                     (when-let [object (subpath-obj page-h page-no doctop-offset attrs subpath)]
+                       (swap! out conj object)))
+                   (doseq [{:keys [corners extra-close?]} rects]
+                     (swap! out conj
+                            (if extra-close?
+                              (curve-obj page-h page-no doctop-offset attrs
+                                         (conj corners (first corners) (first corners)))
+                              (rect-obj page-h page-no doctop-offset attrs corners))))
                    (swap! st assoc :cur nil :start nil :subpaths [] :rects [])))
         clear! (fn [] (swap! st assoc :cur nil :start nil :subpaths [] :rects []))
         engine
         (proxy [PDFGraphicsStreamEngine] [page]
           (appendRectangle [p0 p1 p2 p3]
-            (swap! st update :rects conj (mapv pt [p0 p1 p2 p3])))
+            (swap! st update :rects conj {:corners (mapv pt [p0 p1 p2 p3])
+                                          :extra-close? false}))
           (moveTo [x y]
             (swap! st (fn [s] (-> s
                                   (assoc :cur [x y] :start [x y])
@@ -203,7 +217,9 @@
                                 (-> (assoc :cur (:start s))
                                     (assoc-in [:subpaths (dec (count (:subpaths s))) :closed?] true)
                                     (update-in [:subpaths (dec (count (:subpaths s))) :points] conj (:start s))
-                                    (update-in [:subpaths (dec (count (:subpaths s))) :ops] conj :close))))))
+                                    (update-in [:subpaths (dec (count (:subpaths s))) :ops] conj :close))
+                                (and (nil? (:cur s)) (seq (:rects s)))
+                                (assoc-in [:rects (dec (count (:rects s))) :extra-close?] true)))))
           (endPath [] (clear!))
           (strokePath [] (flush!))
           (fillPath [_winding-rule] (flush!))
