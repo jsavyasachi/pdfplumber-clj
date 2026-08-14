@@ -2,6 +2,19 @@
 
 All notable changes to this project are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.7.0] - 2026-08-13
+
+### Fixed
+- Cell text comes from the characters inside the cell, grouped into words in the
+  cell. It came from the words of the page, so a word that the cell holds in part
+  gave the wrong text. Characters group into a line only when they share the
+  upright state, the font, and the size.
+- A path that ends with a move gives no object for that move. The extra subpath
+  became a curve.
+- A rectangle operator with an extra close operator gives one curve.
+- Corner classification uses the bounds of the nearest rectangle, and a rectangle
+  keeps a side of very small length.
+
 ## [1.6.0] - 2026-08-13
 
 ### Fixed
