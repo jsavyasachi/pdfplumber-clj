@@ -2,6 +2,18 @@
 
 All notable changes to this project are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.8.0] - 2026-08-13
+
+### Fixed
+- Rectangles, lines, curves, images, and annotations take the page rotation. They
+  kept the coordinates of the unrotated page, so on a rotated page every graphics
+  object was placed on the wrong axis. Characters already took the rotation, so a
+  rotated page gave text and graphics in two different coordinate spaces.
+
+### Changed
+- Table edges come from graphics objects that already carry the page rotation, so
+  the table builder no longer rotates its own edges.
+
 ## [1.7.0] - 2026-08-13
 
 ### Fixed
