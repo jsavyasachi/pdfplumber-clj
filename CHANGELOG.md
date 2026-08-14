@@ -2,6 +2,14 @@
 
 All notable changes to this project are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.10.0] - 2026-08-14
+
+### Fixed
+- Path and image coordinates under a transformed coordinate system keep the
+  decimals the document holds. The transform ran on 32-bit floats, so a curve,
+  a line, or an image placed through a scaled or translated matrix landed a
+  fraction of a point away from where the document puts it.
+
 ## [1.9.0] - 2026-08-13
 
 ### Fixed
