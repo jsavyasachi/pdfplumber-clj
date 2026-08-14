@@ -61,11 +61,15 @@
     [min-x (- page-height max-y) max-x (- page-height min-y)]))
 
 (defn- text-for-position [^TextPosition tp]
-  (let [unicode (.getUnicode tp)]
-    (or (some #(.toUnicode ^org.apache.pdfbox.pdmodel.font.PDFont
-                           (.getFont tp) (int %))
-              (.getCharacterCodes tp))
+  (let [unicode (.getUnicode tp)
+        codes (.getCharacterCodes tp)
+        mapped (some #(.toUnicode ^org.apache.pdfbox.pdmodel.font.PDFont
+                                  (.getFont tp) (int %))
+                     codes)]
+    (or mapped
         (when (seq unicode) unicode)
+        (when-let [code (first codes)]
+          (str "(cid:" code ")"))
         "")))
 
 (defn- tp->char [^TextPosition tp page-no page-width page-height rotation doctop-offset]
@@ -172,7 +176,9 @@
     (.setStartPage stripper (int p))
     (.setEndPage stripper (int p))
     (.getText stripper doc)
-    (let [chars @acc]
+    (let [chars (mapv (fn [[source-order c]]
+                        (with-meta c (assoc (meta c) :source-order source-order)))
+                      (map-indexed vector @acc))]
       (if (or use-text-flow
               (some #(not (:upright %)) chars))
         chars
@@ -253,8 +259,10 @@
       :btt [(- (+ (double (:top item)) (double (:height item))))
             nonblank
             (- (double (:top item)))]
-      :ltr [(double (:x0 item))]
-      :rtl [(- (double (:x1 item)))])))
+      :ltr [(double (:x0 item))
+            (or (:source-order (meta item)) nonblank)]
+      :rtl [(- (double (:x1 item)))
+            (or (:source-order (meta item)) nonblank)])))
 
 (defn- cluster-items [items direction tolerance]
   (let [coordinates (->> items
@@ -293,7 +301,9 @@
                     (conj (pop lines) (conj line c))
                     (conj lines [c]))))
               []
-              (if (:use-text-flow opts) chars (sort-by :top chars)))
+              (if (:use-text-flow opts)
+                chars
+                (sort-by :top chars)))
       (cluster-items chars line-dir
                      (if (contains? #{:ltr :rtl} line-dir)
                        (:x-tolerance opts)
