@@ -285,6 +285,10 @@
         (println "  crashes:" (mapv (juxt :name :crash) crashes)))
       (when (seq worst-text-files)
         (println "  worst text similarity:" (mapv (juxt :name :similarity) worst-text-files)))
+      (let [zero-text-files (->> text-similarities
+                                 (filter #(zero? (:similarity %)))
+                                 (mapv :name))]
+        (println "  zero text similarity:" (count zero-text-files) zero-text-files))
       (when (seq page-mismatch)
         (println "  page mismatch:" (mapv (juxt :name :pages #(get-in % [:golden :pages])) page-mismatch)))
       (println (format "[corpus tables] count-match=%.3f (%d/%d) | shape-match=%.3f (%d/%d) | cell-recall median=%.3f | zero-recall-pages=%d"
