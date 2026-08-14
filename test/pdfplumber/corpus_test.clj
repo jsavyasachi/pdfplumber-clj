@@ -55,6 +55,9 @@
 (defn- table-shape [table]
   [(count table) (reduce max 0 (map count table))])
 
+(defn- shape-label [[rows columns]]
+  (format "%dx%d" rows columns))
+
 (defn- normalized-cell [cell]
   (str/trim (str/replace (or cell "") #"\s+" " ")))
 
@@ -235,16 +238,29 @@
                                           (reduce + 0 (map count (get-in % [:golden :tables]))))
                                       table-rows)
           table-pairs (mapcat (fn [r]
-                                (mapcat (fn [[clj-page python-page]]
-                                          (map (fn [[clj-table python-table]]
-                                                 {:name (:name r)
-                                                  :clj clj-table
-                                                  :python python-table})
-                                               (map vector clj-page python-page)))
-                                        (map vector (:tables r) (get-in r [:golden :tables]))))
+                                (mapcat (fn [[page-index [clj-page python-page]]]
+                                          (map-indexed (fn [table-index [clj-table python-table]]
+                                                         {:name (:name r)
+                                                          :page (inc page-index)
+                                                          :table (inc table-index)
+                                                          :clj clj-table
+                                                          :python python-table})
+                                                       (map vector clj-page python-page)))
+                                        (map-indexed vector
+                                                     (map vector (:tables r)
+                                                          (get-in r [:golden :tables])))))
                               table-rows)
           shape-pairs (filter #(= (table-shape (:clj %)) (table-shape (:python %)))
                               table-pairs)
+          shape-mismatches (->> table-pairs
+                                (remove #(= (table-shape (:clj %))
+                                            (table-shape (:python %))))
+                                (mapv (fn [{:keys [name page table clj python]}]
+                                        {:file name
+                                         :page page
+                                         :table table
+                                         :ours (shape-label (table-shape clj))
+                                         :python (shape-label (table-shape python))})))
           page-cell-recalls (mapcat (fn [r]
                                       (keep-indexed
                                        (fn [page-index [clj-tables python-tables]]
@@ -298,6 +314,8 @@
                        (count shape-pairs) (count table-pairs)
                        (or (median (map :recall page-cell-recalls)) 0.0)
                        (count zero-recall-pages)))
+      (when (seq shape-mismatches)
+        (println "  shape mismatches:" shape-mismatches))
       (when (seq worst-files)
         (println "  worst cell recall:" (mapv (juxt :name :recall) worst-files)))
       (when (seq content-gap-candidates)
