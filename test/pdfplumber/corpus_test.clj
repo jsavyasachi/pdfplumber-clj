@@ -24,6 +24,12 @@
    :curves 0.95
    :images 0.95
    :annots 0.95})
+(def ^:private object-imperfect-page-ceilings
+  {:rects 61
+   :lines 9
+   :curves 17
+   :images 3
+   :annots 11})
 
 (def ^:private object-extractors
   {:rects pdf/rects
@@ -76,17 +82,48 @@
        (remove str/blank?)
        vec))
 
+(defn- same-value? [a b]
+  (cond
+    (and (number? a) (number? b)) (== a b)
+    (and (sequential? a) (sequential? b))
+    (and (= (count a) (count b)) (every? true? (map same-value? a b)))
+    :else (= a b)))
+
 (defn- multiset-overlap [a b]
-  (reduce-kv (fn [matched cell a-count]
-               (+ matched (min a-count (get (frequencies b) cell 0))))
-             0
-             (frequencies a)))
+  (loop [expected (seq a)
+         actual (vec b)
+         matched 0]
+    (if-let [cell (first expected)]
+      (if-let [index (some (fn [index]
+                             (when (same-value? cell (nth actual index))
+                               index))
+                           (range (count actual)))]
+        (recur (next expected)
+               (vec (concat (subvec actual 0 index)
+                            (subvec actual (inc index))))
+               (inc matched))
+        (recur (next expected) actual matched))
+      matched)))
 
 (defn- multiset-recall [expected actual]
   (if (seq expected)
     (/ (double (multiset-overlap expected actual))
        (count expected))
     1.0))
+
+(deftest compares-box-numbers-by-value
+  (is (= 1.0
+         (multiset-recall [[541.0 705.53 541.0 724.35]]
+                          [[541 705.53 541 724.35]]))))
+
+(defn- imperfect-page-count [page-recalls]
+  (count (filter #(< (:recall %) 1.0) page-recalls)))
+
+(deftest counts-imperfect-pages-per-object-type
+  (is (= 2
+         (imperfect-page-count [{:recall 1.0}
+                                {:recall 0.0}
+                                {:recall 0.5}]))))
 
 (defn- rounded-coordinate [n]
   (/ (double (Math/round (* 100.0 (double n)))) 100.0))
@@ -338,16 +375,18 @@
       (doseq [object-type object-types]
         (let [page-recalls (get object-page-recalls object-type)
               count-matches (filter :count-match page-recalls)
+              imperfect-pages (imperfect-page-count page-recalls)
               file-recalls (for [[name pages] (group-by :name page-recalls)]
                              {:name name :recall (apply min (map :recall pages))})
               worst-files (take 5 (sort-by (juxt :recall :name) file-recalls))]
-          (println (format "[corpus %s] count-match=%.3f (%d/%d) | box-recall median=%.3f"
+          (println (format "[corpus %s] count-match=%.3f (%d/%d) | box-recall median=%.3f | imperfect-pages=%d"
                            (name object-type)
                            (if (seq page-recalls)
                              (/ (double (count count-matches)) (count page-recalls))
                            0.0)
                            (count count-matches) (count page-recalls)
-                           (or (median (map :recall page-recalls)) 0.0)))
+                           (or (median (map :recall page-recalls)) 0.0)
+                           imperfect-pages))
           (when (seq worst-files)
             (println "  worst box recall:" (mapv (juxt :name :recall) worst-files)))
           (let [count-mismatches (->> page-recalls
@@ -398,6 +437,14 @@
                   (get object-box-recall-thresholds object-type))
               (str object-type " box recall fell below "
                    (get object-box-recall-thresholds object-type)))))
+      (testing "per-page object box recall stays within imperfect-page ceilings"
+        (doseq [object-type object-types]
+          (let [imperfect-pages (imperfect-page-count
+                                 (get object-page-recalls object-type))
+                ceiling (get object-imperfect-page-ceilings object-type)]
+            (is (<= imperfect-pages ceiling)
+                (str object-type " has " imperfect-pages
+                     " imperfect pages, above ceiling " ceiling)))))
       ;; The test asserts recall on the MEDIAN. Some corpus PDFs have damaged
       ;; text extraction in Python pdfplumber. A minimum would make its bugs
       ;; part of this contract. Investigate a lower median, not one low score.
