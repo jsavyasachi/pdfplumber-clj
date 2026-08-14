@@ -2,6 +2,15 @@
 
 All notable changes to this project are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.6.0] - 2026-08-13
+
+### Fixed
+- A table gets its rows and columns from the positions of every cell in the
+  table, and an empty slot holds a `nil` cell. A table with a gap lost between
+  one and three columns, so its shape did not agree with the source.
+- Word grouping keeps the source order of glyphs that overlap. A blank glyph at
+  the same start position as a letter split the word.
+
 ## [1.5.0] - 2026-08-13
 
 ### Fixed
