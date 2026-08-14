@@ -22,6 +22,7 @@
             PDField PDSignatureField PDTerminalField PDTextField]
            [org.apache.pdfbox.util Matrix]
            [java.awt.geom Point2D Point2D$Float]
+           [java.math BigDecimal RoundingMode]
            [java.io ByteArrayOutputStream]
            [javax.imageio ImageIO]))
 
@@ -29,7 +30,17 @@
 
 (def ^:private orient-tolerance 0.1)
 
-(defn- pt [^Point2D p] [(.getX p) (.getY p)])
+(defn- pdf-float->double [value]
+  (Double/parseDouble (Float/toString (float value))))
+
+(defn- pdf-float-point [x y]
+  [(pdf-float->double x) (pdf-float->double y)])
+
+(defn- pdf-coordinate [value]
+  (.doubleValue (.setScale (BigDecimal. (double value)) 3 RoundingMode/HALF_UP)))
+
+(defn- pt [^Point2D p] [(pdf-float->double (.getX p))
+                        (pdf-float->double (.getY p))])
 
 (defn- color-components [^PDColor color]
   (some->> color .getComponents (mapv double)))
@@ -65,8 +76,8 @@
                           :else :other))))
 
 (defn- rect-obj [page-h page-no doctop-offset attrs corners]
-  (let [xs (map first corners)
-        tops (map #(g/flip-y page-h (second %)) corners)
+  (let [xs (map #(pdf-coordinate (first %)) corners)
+        tops (map #(pdf-coordinate (g/flip-y page-h (second %))) corners)
         x0 (apply min xs) top (apply min tops)
         x1 (apply max xs) bottom (apply max tops)]
     (rich-bbox :rect page-h page-no doctop-offset x0 top x1 bottom attrs)))
@@ -202,7 +213,7 @@
 (defn- object-engine
   "A PDFGraphicsStreamEngine that adds top-left object maps to `out`."
   ^PDFGraphicsStreamEngine [^PDPage page page-no doctop-offset out include-image-data?]
-  (let [page-h (double (.getHeight (.getMediaBox page)))
+  (let [page-h (pdf-float->double (.getHeight (.getMediaBox page)))
         st (atom {:cur nil :start nil :subpaths [] :rects []})
         engine-holder (atom nil)
         flush! (fn []
@@ -229,21 +240,24 @@
                                           :extra-close? false}))
           (moveTo [x y]
             (swap! st (fn [s] (-> s
-                                  (assoc :cur [x y] :start [x y])
-                                  (update :subpaths conj {:points [[x y]]
+                                  (assoc :cur (pdf-float-point x y)
+                                         :start (pdf-float-point x y))
+                                  (update :subpaths conj {:points [(pdf-float-point x y)]
                                                           :ops [:move]
                                                           :closed? false})))))
           (lineTo [x y]
             (swap! st (fn [s] (-> s
-                                  (update-in [:subpaths (dec (count (:subpaths s))) :points] conj [x y])
+                                  (update-in [:subpaths (dec (count (:subpaths s))) :points]
+                                             conj (pdf-float-point x y))
                                   (update-in [:subpaths (dec (count (:subpaths s))) :ops] conj :line)
-                                  (assoc :cur [x y])))))
+                                  (assoc :cur (pdf-float-point x y))))))
           (curveTo [x1 y1 x2 y2 x3 y3]
             (swap! st (fn [s] (-> s
                                   (assoc-in [:subpaths (dec (count (:subpaths s))) :has-curve?] true)
-                                  (update-in [:subpaths (dec (count (:subpaths s))) :points] conj [x3 y3])
+                                  (update-in [:subpaths (dec (count (:subpaths s))) :points]
+                                             conj (pdf-float-point x3 y3))
                                   (update-in [:subpaths (dec (count (:subpaths s))) :ops] conj :curve)
-                                  (assoc :cur [x3 y3])))))
+                                  (assoc :cur (pdf-float-point x3 y3))))))
           (getCurrentPoint []
             (let [[x y] (or (:cur @st) [0.0 0.0])]
               (Point2D$Float. (float x) (float y))))
@@ -275,14 +289,14 @@
   (let [page (.getPage doc (dec (int p)))
         box (.getMediaBox page)]
     (if (contains? #{90 270} (mod (.getRotation page) 360))
-      (double (.getWidth box))
-      (double (.getHeight box)))))
+      (pdf-float->double (.getWidth box))
+      (pdf-float->double (.getHeight box)))))
 
 (defn- page-objects [^PDDocument doc ^long p include-image-data?]
   (let [page (.getPage doc (dec (int p)))
         box (.getMediaBox page)
-        page-width (double (.getWidth box))
-        page-height (double (.getHeight box))
+        page-width (pdf-float->double (.getWidth box))
+        page-height (pdf-float->double (.getHeight box))
         rotation (mod (.getRotation page) 360)
         offset (reduce + 0.0 (map #(page-display-height doc %) (range 1 p)))
         out (atom [])
@@ -420,10 +434,10 @@
 (defn- annotation-obj [page-height page-no doctop-offset field-lookup
                        ^PDAnnotation annotation]
   (let [rect (.getRectangle annotation)
-        x0 (double (.getLowerLeftX rect))
-        x1 (double (.getUpperRightX rect))
-        top (- page-height (double (.getUpperRightY rect)))
-        bottom (- page-height (double (.getLowerLeftY rect)))
+        x0 (pdf-float->double (.getLowerLeftX rect))
+        x1 (pdf-float->double (.getUpperRightX rect))
+        top (- page-height (pdf-float->double (.getUpperRightY rect)))
+        bottom (- page-height (pdf-float->double (.getLowerLeftY rect)))
         action (when (instance? PDAnnotationLink annotation)
                  (.getAction ^PDAnnotationLink annotation))
         uri (when (instance? PDActionURI action) (.getURI ^PDActionURI action))
@@ -455,8 +469,8 @@
                    (mapcat (fn [p]
                              (let [pd-page (.getPage doc (dec (int p)))
                                    box (.getMediaBox pd-page)
-                                   width (double (.getWidth box))
-                                   height (double (.getHeight box))
+                                   width (pdf-float->double (.getWidth box))
+                                   height (pdf-float->double (.getHeight box))
                                    rotation (mod (.getRotation pd-page) 360)
                                    offset (reduce + 0.0
                                                   (map #(page-display-height doc %) (range 1 p)))]

@@ -12,7 +12,9 @@
             [clojure.java.io :as io]
             [clojure.set :as set]
             [clojure.string :as str]
-            [pdfplumber.core :as pdf]))
+            [pdfplumber.core :as pdf]
+            [pdfplumber.fixtures :as fix])
+  (:import [java.math BigDecimal RoundingMode]))
 
 (def ^:private golden-file (io/file "corpus/golden.json"))
 (def ^:private corpus-dir "corpus/pdfplumber")
@@ -126,10 +128,15 @@
                                 {:recall 0.5}]))))
 
 (defn- rounded-coordinate [n]
-  (/ (double (Math/round (* 100.0 (double n)))) 100.0))
+  (.doubleValue (.setScale (BigDecimal. (double n)) 2 RoundingMode/HALF_EVEN)))
 
 (defn- object-box [object]
   (mapv (comp rounded-coordinate object) [:x0 :top :x1 :bottom]))
+
+(deftest rounds-fixture-boxes-like-python
+  (pdf/with-pdf [d (fix/decimal-coordinate-pdf)]
+    (is (= [[485.06 163.44 486.06 164.44]]
+           (mapv object-box (pdf/rects d))))))
 
 (defn- object-record [objects]
   {:count (count objects)

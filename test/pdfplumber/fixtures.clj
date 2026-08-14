@@ -241,6 +241,17 @@
         (.addRect cs (float 100) (float 400) (float 200) (float 100)) (.stroke cs)))
     (->bytes doc)))
 
+(defn decimal-coordinate-pdf
+  "Single page with a stroked rectangle whose x coordinate has three decimal places."
+  ^bytes []
+  (with-open [doc (PDDocument.)]
+    (let [page (PDPage. PDRectangle/LETTER)]
+      (.addPage doc page)
+      (with-open [cs (PDPageContentStream. doc page)]
+        (.addRect cs (float 485.055) (float 627.565) (float 1.0) (float 1.0))
+        (.stroke cs)))
+    (->bytes doc)))
+
 (defn near-tolerance-cells-pdf
   "Single page with two vertically adjacent cell rectangles separated by a near-tolerance gap."
   ^bytes []
