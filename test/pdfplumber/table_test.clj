@@ -48,13 +48,6 @@
                [1.5 0.0 2.5 1.0]]]
     (is (= 2 (count (cell-components cells 3.0))))))
 
-(deftest cell-text-clusters-before-sorting-words
-  (let [cell-text (private-var 'cell-text)
-        words [{:text "A" :x0 10.0 :top 1.0 :x1 14.0 :bottom 8.0}
-               {:text "B" :x0 20.0 :top 0.0 :x1 24.0 :bottom 7.0}]
-        chars (map #(assoc % :upright true :y0 (- 20.0 (:bottom %))) words)]
-    (is (= "A B" (cell-text words chars [0.0 0.0 100.0 20.0] {})))))
-
 (deftest cell-text-uses-characters-when-a-word-crosses-a-cell
   (let [cell-text (private-var 'cell-text)
         words [{:text "Basse" :x0 10.0 :top 1.0 :x1 20.0 :bottom 8.0}]

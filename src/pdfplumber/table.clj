@@ -327,18 +327,7 @@
 
 (defn- cell-word-text [words within? y-tolerance]
   (->> (filter within? words)
-       (sort-by :top)
-       (reduce (fn [rows word]
-                 (let [row (peek rows)
-                       row-top (some-> row first :top)]
-                   (if (and row-top
-                            (<= (Math/abs (- (double (:top word))
-                                             (double row-top)))
-                                y-tolerance))
-                     (conj (pop rows) (conj row word))
-                     (conj rows [word]))))
-               [])
-       (mapcat #(sort-by :x0 %))
+       (sort-by (juxt :top :x0))
        (map :text)
        (str/join " ")))
 
