@@ -2,6 +2,22 @@
 
 All notable changes to this project are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.5.0] - 2026-08-13
+
+### Fixed
+- A glyph with no Unicode value falls back to the font character code. Such a
+  glyph gave no text.
+- A transformed glyph gets its box from the font descent, the em height, the
+  advance, and the text matrix. A rotated glyph took a box that did not hold it,
+  so it fell outside the table cell that holds it.
+- Page rotation applies before the text direction is classified.
+- Cell text keeps the extraction order of the words, then orders by line and by
+  x position. A multi-line cell reads by line.
+- Cell text uses the characters of a word only when the word is inside the cell
+  or the cell holds no word. A word that crossed a cell in x alone added text
+  from another line.
+- Mixed-orientation content groups into lines by the top coordinate.
+
 ## [1.4.0] - 2026-08-13
 
 ### Fixed
