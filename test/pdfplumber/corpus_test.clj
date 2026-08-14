@@ -27,9 +27,9 @@
    :annots 0.95})
 (def ^:private object-imperfect-page-ceilings
   {:rects 14
-   :lines 2
-   :curves 5
-   :images 2
+   :lines 1
+   :curves 2
+   :images 1
    :annots 0})
 
 (def ^:private object-extractors
