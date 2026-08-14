@@ -152,6 +152,42 @@
              :page-number page-no}
       include-data? (assoc :bytes (png-bytes image)))))
 
+(defn- integral-number [value]
+  (let [rounded (Math/rint (double value))]
+    (if (== (double value) rounded)
+      (long rounded)
+      value)))
+
+(defn- rotate-object [object page-width page-height rotation doctop-offset]
+  (let [[x0 top x1 bottom] (g/rotate-bbox [(:x0 object) (:top object)
+                                            (:x1 object) (:bottom object)]
+                                           page-width page-height rotation)
+        [x0 top x1 bottom] (if (= :annot (:type object))
+                             (mapv integral-number [x0 top x1 bottom])
+                             [x0 top x1 bottom])
+        display-height (if (contains? #{90 270} rotation)
+                         page-width
+                         page-height)
+        object (assoc object
+                      :x0 x0 :top top :x1 x1 :bottom bottom
+                      :y0 (- display-height bottom)
+                      :y1 (- display-height top)
+                      :doctop (+ doctop-offset top))]
+    (cond-> object
+      (contains? object :pts)
+      (update :pts #(mapv (fn [point]
+                            (g/rotate-point point page-width page-height rotation))
+                          %))
+
+      (not= :image (:type object))
+      (assoc :width (- x1 x0) :height (- bottom top))
+
+      (= :line (:type object))
+      (assoc :orientation (cond
+                            (<= (- bottom top) orient-tolerance) :horizontal
+                            (<= (- x1 x0) orient-tolerance) :vertical
+                            :else :other)))))
+
 (defn- subpath-obj [page-h page-no doctop-offset attrs subpath]
   (let [{:keys [points ops] :as subpath} (normalized-subpath subpath)]
     (when (seq points)
@@ -235,16 +271,24 @@
     (clojure.core/reset! engine-holder engine)
     engine))
 
-(defn- page-height [^PDDocument doc ^long p]
-  (double (.getHeight (.getMediaBox (.getPage doc (dec (int p)))))))
+(defn- page-display-height [^PDDocument doc ^long p]
+  (let [page (.getPage doc (dec (int p)))
+        box (.getMediaBox page)]
+    (if (contains? #{90 270} (mod (.getRotation page) 360))
+      (double (.getWidth box))
+      (double (.getHeight box)))))
 
 (defn- page-objects [^PDDocument doc ^long p include-image-data?]
   (let [page (.getPage doc (dec (int p)))
-        offset (reduce + 0.0 (map #(page-height doc %) (range 1 p)))
+        box (.getMediaBox page)
+        page-width (double (.getWidth box))
+        page-height (double (.getHeight box))
+        rotation (mod (.getRotation page) 360)
+        offset (reduce + 0.0 (map #(page-display-height doc %) (range 1 p)))
         out (atom [])
         ^PDFGraphicsStreamEngine engine (object-engine page p offset out include-image-data?)]
     (.processPage engine page)
-    @out))
+    (mapv #(rotate-object % page-width page-height rotation offset) @out)))
 
 (defn- obj-bbox [o]
   [(:x0 o) (:top o) (:x1 o) (:bottom o)])
@@ -410,10 +454,15 @@
          all (into []
                    (mapcat (fn [p]
                              (let [pd-page (.getPage doc (dec (int p)))
-                                   height (page-height doc p)
+                                   box (.getMediaBox pd-page)
+                                   width (double (.getWidth box))
+                                   height (double (.getHeight box))
+                                   rotation (mod (.getRotation pd-page) 360)
                                    offset (reduce + 0.0
-                                                  (map #(page-height doc %) (range 1 p)))]
-                               (map #(annotation-obj height p offset field-lookup %)
+                                                  (map #(page-display-height doc %) (range 1 p)))]
+                               (map #(rotate-object
+                                      (annotation-obj height p offset field-lookup %)
+                                      width height rotation offset)
                                     (.getAnnotations pd-page)))))
                    pages)]
      (cond-> (if (and bbox (not view-operations))

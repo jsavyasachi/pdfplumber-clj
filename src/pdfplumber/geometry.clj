@@ -25,6 +25,25 @@
         bottom (double (- page-height y))]
     [x0 top x1 bottom]))
 
+(defn rotate-bbox
+  "Rotate a top-left bbox by the page rotation using media-box dimensions."
+  [[x0 top x1 bottom] page-width page-height rotation]
+  (case (int rotation)
+    90 [(- page-height bottom) x0 (- page-height top) x1]
+    180 [(- page-width x1) (- page-height bottom)
+         (- page-width x0) (- page-height top)]
+    270 [top (- page-width x1) bottom (- page-width x0)]
+    [x0 top x1 bottom]))
+
+(defn rotate-point
+  "Rotate a top-left point by the page rotation using media-box dimensions."
+  [[x top] page-width page-height rotation]
+  (case (int rotation)
+    90 [(- page-height top) x]
+    180 [(- page-width x) (- page-height top)]
+    270 [top (- page-width x)]
+    [x top]))
+
 (defn bbox-width  [[x0 _ x1 _]] (- x1 x0))
 (defn bbox-height [[_ top _ bottom]] (- bottom top))
 
