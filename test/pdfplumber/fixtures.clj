@@ -72,6 +72,84 @@
           (.endText cs))))
     (->bytes doc)))
 
+(defn reflected-text-pdf
+  "Single page with text painted through a horizontal reflection."
+  ^bytes []
+  (with-open [doc (PDDocument.)]
+    (let [page (PDPage. PDRectangle/LETTER)]
+      (.addPage doc page)
+      (with-open [cs (PDPageContentStream. doc page)]
+        (.transform cs (Matrix. -1.0 0.0 0.0 1.0 540.0 0.0))
+        (.beginText cs)
+        (.setFont cs (helvetica) 12.0)
+        (.newLineAtOffset cs (float 72.0) (float 700.0))
+        (.showText cs "The")
+        (.endText cs)))
+    (->bytes doc)))
+
+(defn vertical-text-pdf
+  "Single page with text painted through a quarter-turn rotation."
+  ^bytes []
+  (with-open [doc (PDDocument.)]
+    (let [page (PDPage. (PDRectangle. (float 792.0) (float 612.0)))]
+      (.addPage doc page)
+      (with-open [cs (PDPageContentStream. doc page)]
+        (.transform cs (Matrix. 0.0 -1.0 1.0 0.0 100.0 700.0))
+        (.beginText cs)
+        (.setFont cs (helvetica) 12.0)
+        (.newLineAtOffset cs (float 0.0) (float 0.0))
+        (.showText cs "t h")
+        (.endText cs)))
+    (->bytes doc)))
+
+(defn page-rotated-text-pdf
+  "Single page with a 180-degree page rotation and one text line."
+  ^bytes []
+  (with-open [doc (PDDocument.)]
+    (let [page (PDPage. PDRectangle/LETTER)]
+      (.setRotation page 180)
+      (.addPage doc page)
+      (with-open [cs (PDPageContentStream. doc page)]
+        (.beginText cs)
+        (.setFont cs (helvetica) 12.0)
+        (.newLineAtOffset cs (float 72.0) (float 700.0))
+        (.showText cs "Dummy PDF file")
+        (.endText cs)))
+    (->bytes doc)))
+
+(defn non-breaking-space-text-pdf
+  "Single line with a non-breaking space between words."
+  ^bytes []
+  (with-open [doc (PDDocument.)]
+    (let [page (PDPage. PDRectangle/LETTER)]
+      (.addPage doc page)
+      (with-open [cs (PDPageContentStream. doc page)]
+        (.beginText cs)
+        (.setFont cs (helvetica) 12.0)
+        (.newLineAtOffset cs (float 72.0) (float 700.0))
+        (.showText cs "Broad\u00a0Agency")
+        (.endText cs)))
+    (->bytes doc)))
+
+(defn mixed-font-baseline-pdf
+  "Single line with adjacent text in fonts with different glyph heights."
+  ^bytes []
+  (with-open [doc (PDDocument.)]
+    (let [page (PDPage. PDRectangle/LETTER)]
+      (.addPage doc page)
+      (with-open [cs (PDPageContentStream. doc page)]
+        (.beginText cs)
+        (.setFont cs (helvetica) 24.0)
+        (.newLineAtOffset cs (float 72.0) (float 700.0))
+        (.showText cs "Black")
+        (.endText cs)
+        (.beginText cs)
+        (.setFont cs (PDType1Font. Standard14Fonts$FontName/TIMES_ROMAN) 12.0)
+        (.newLineAtOffset cs (float 130.0) (float 700.0))
+        (.showText cs "Red")
+        (.endText cs)))
+    (->bytes doc)))
+
 (defn duplicate-text-pdf
   "Single page with the same glyph painted twice at nearby positions."
   ^bytes []
@@ -83,6 +161,21 @@
           (.beginText cs)
           (.setFont cs (helvetica) (float 12))
           (.newLineAtOffset cs (float x) (float 700))
+          (.showText cs "A")
+          (.endText cs))))
+    (->bytes doc)))
+
+(defn duplicate-chain-text-pdf
+  "Single page with the same glyph painted at three adjacent positions."
+  ^bytes []
+  (with-open [doc (PDDocument.)]
+    (let [page (PDPage. PDRectangle/LETTER)]
+      (.addPage doc page)
+      (with-open [cs (PDPageContentStream. doc page)]
+        (doseq [x [72.0 72.9 73.8]]
+          (.beginText cs)
+          (.setFont cs (helvetica) 12.0)
+          (.newLineAtOffset cs (float x) (float 700.0))
           (.showText cs "A")
           (.endText cs))))
     (->bytes doc)))

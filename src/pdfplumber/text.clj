@@ -1,10 +1,10 @@
 (ns pdfplumber.text
   "Extract characters, words, and text with PDFBox's PDFTextStripper.
 
-   PDFTextStripper already reports direction-adjusted coordinates in a top-left
-   origin, so char maps are built directly from `getXDirAdj`/`getYDirAdj` without
-   a page-height flip. Words are formed by clustering chars into lines (within
-   `:y-tolerance`) and splitting on horizontal gaps wider than `:x-tolerance`."
+   PDFTextStripper reports direction-adjusted coordinates in a top-left origin.
+   Char maps normalize page and content rotations before word grouping. Words
+   are formed by clustering chars into lines (within `:y-tolerance`) and
+   splitting on horizontal gaps wider than `:x-tolerance`."
   (:refer-clojure :exclude [chars])
   (:require [clojure.string :as str]
             [pdfplumber.geometry :as g]
@@ -18,6 +18,8 @@
 (set! *warn-on-reflection* true)
 
 (def ^:private default-tolerance 3.0)
+(def ^:private default-line-dir :ttb)
+(def ^:private default-char-dir :ltr)
 
 (defn- matrix-values [^Matrix matrix]
   [(double (.getScaleX matrix))
@@ -27,29 +29,88 @@
    (double (.getTranslateX matrix))
    (double (.getTranslateY matrix))])
 
-(defn- tp->char [^TextPosition tp ^long page-no page-height doctop-offset]
-  (let [x0 (double (.getXDirAdj tp))
+(defn- rotate-bbox [[x0 top x1 bottom] page-width page-height rotation]
+  (case (int rotation)
+    90 [(- page-height bottom) x0 (- page-height top) x1]
+    180 [(- page-width x1) (- page-height bottom)
+         (- page-width x0) (- page-height top)]
+    270 [top (- page-width x1) bottom (- page-width x0)]
+    [x0 top x1 bottom]))
+
+(defn- rotate-content-bbox [_raw-bbox
+                           page-height shear-x shear-y translate-x translate-y
+                           glyph-height]
+   [(if (pos? shear-x)
+     translate-x
+     (- translate-x (Math/abs (double shear-y))))
+   (if (neg? shear-y)
+     (- page-height translate-y)
+     (- page-height (+ translate-y glyph-height)))
+   (if (pos? shear-x)
+     (+ translate-x (Math/abs (double shear-y)))
+     translate-x)
+   (if (neg? shear-y)
+     (+ (- page-height translate-y) glyph-height)
+     (- page-height translate-y))])
+
+(defn- tp->char [^TextPosition tp page-no page-width page-height rotation doctop-offset]
+  (let [[scale-x shear-y shear-x scale-y translate-x translate-y :as matrix]
+        (matrix-values (.getTextMatrix tp))
+        raw-x0 (double (.getXDirAdj tp))
         w (double (.getWidthDirAdj tp))
         h (double (.getHeightDir tp))
-        bottom (double (.getYDirAdj tp))
-        top (- bottom h)
+        raw-bottom (double (.getYDirAdj tp))
+        raw-top (- raw-bottom h)
+        [raw-x0 raw-top raw-x1 raw-bottom]
+        (cond
+          (and (< scale-x 0.0) (< scale-y 0.0))
+          [(- page-width raw-x0 w) (- page-height raw-bottom)
+           (- page-width raw-x0) (- page-height raw-top)]
+          (< scale-x 0.0)
+          [(- raw-x0 w) raw-top raw-x0 raw-bottom]
+          :else
+          [raw-x0 raw-top (+ raw-x0 w) raw-bottom])
+        content-horizontal? (>= (Math/abs (double scale-x))
+                                (Math/abs (double shear-y)))
+        apply-page-rotation? (and content-horizontal?
+                               (contains? #{180 270} rotation))
+        apply-content-rotation? (and (not content-horizontal?)
+                                     (zero? rotation)
+                                     (> page-width page-height))
+        [x0 top x1 bottom] (cond
+                             apply-page-rotation?
+                             (rotate-bbox [raw-x0 raw-top raw-x1 raw-bottom]
+                                          page-width page-height rotation)
+
+                             apply-content-rotation?
+                             (rotate-content-bbox [raw-x0 raw-top raw-x1 raw-bottom]
+                                                  page-height shear-x shear-y
+                                                  translate-x translate-y h)
+
+                             :else
+                             [raw-x0 raw-top raw-x1 raw-bottom])
+        determinant (- (* scale-x scale-y) (* shear-y shear-x))
+        upright (and (pos? determinant)
+                     (if (= 270 rotation)
+                       (not content-horizontal?)
+                       content-horizontal?))
         fontname (some-> (.getFont tp) .getName)
         size (double (.getFontSizeInPt tp))]
     {:text (.getUnicode tp)
      :x0 x0
      :top top
-     :x1 (+ x0 w)
+     :x1 x1
      :bottom bottom
      :y0 (- page-height bottom)
      :y1 (- page-height top)
-     :width w
-     :height h
+     :width (- x1 x0)
+     :height (- bottom top)
      :doctop (+ doctop-offset top)
      :fontname fontname
      :size size
      :adv w
-     :upright (zero? (mod (double (.getDir tp)) 360.0))
-     :matrix (matrix-values (.getTextMatrix tp))
+     :upright upright
+     :matrix matrix
      :object-type :char
      ;; Legacy spellings are supported.
      :font-name fontname
@@ -61,15 +122,15 @@
 
 (defn- collecting-stripper
   "A PDFTextStripper that adds each char map, tagged with `page-no`, to `acc`."
-  ^PDFTextStripper [acc page-no page-height doctop-offset use-text-flow]
+  ^PDFTextStripper [acc page-no page-width page-height rotation doctop-offset use-text-flow]
   (if use-text-flow
     (proxy [PDFTextStripper] []
       (processTextPosition [^TextPosition tp]
-        (swap! acc conj (tp->char tp page-no page-height doctop-offset))))
+        (swap! acc conj (tp->char tp page-no page-width page-height rotation doctop-offset))))
     (proxy [PDFTextStripper] []
       (writeString [^String _text ^List text-positions]
         (doseq [^TextPosition tp text-positions]
-          (swap! acc conj (tp->char tp page-no page-height doctop-offset)))))))
+          (swap! acc conj (tp->char tp page-no page-width page-height rotation doctop-offset)))))))
 
 (defn- page-height [^PDDocument doc ^long p]
   (double (.getHeight (.getMediaBox (.getPage doc (dec (int p)))))))
@@ -79,20 +140,33 @@
 
 (defn- page-chars [^PDDocument doc ^long p use-text-flow]
   (let [acc (atom [])
+        page (.getPage doc (dec (int p)))
+        box (.getMediaBox page)
+        width (double (.getWidth box))
         height (page-height doc p)
-        ^PDFTextStripper stripper (collecting-stripper acc p height
+        rotation (mod (.getRotation page) 360)
+        ^PDFTextStripper stripper (collecting-stripper acc p width height rotation
                                                        (doctop-offset doc p)
                                                        use-text-flow)]
-    (.setSortByPosition stripper (not use-text-flow))
+    (.setSortByPosition stripper false)
+    (.setSuppressDuplicateOverlappingText stripper false)
     (.setStartPage stripper (int p))
     (.setEndPage stripper (int p))
     (.getText stripper doc)
-    @acc))
+    (let [chars @acc]
+      (if (or use-text-flow
+              (some #(not (:upright %)) chars))
+        chars
+        (vec (sort-by (juxt :top :x0) chars))))))
 
 (def ^:private option-aliases
   {:keep_blank_chars :keep-blank-chars
    :use_text_flow :use-text-flow
    :horizontal_ltr :horizontal-ltr
+   :line_dir :line-dir
+   :char_dir :char-dir
+   :line_dir_rotated :line-dir-rotated
+   :char_dir_rotated :char-dir-rotated
    :extra_attrs :extra-attrs
    :split_at_punctuation :split-at-punctuation
    :expand_ligatures :expand-ligatures})
@@ -119,19 +193,84 @@
        view-operations (page/apply-view view-operations)))))
 
 (defn- whitespace? [s]
-  (or (nil? s) (str/blank? s)))
+  (or (nil? s)
+      (str/blank? s)
+      (and (string? s)
+           (every? (fn [c]
+                     (or (Character/isWhitespace ^char c)
+                         (Character/isSpaceChar ^char c)))
+                   s))))
+
+(defn- direction-value [opts key default]
+  (or (get opts key) default))
+
+(defn- directions [opts upright]
+  (let [horizontal-ltr (not= false (:horizontal-ltr opts))
+        char-dir (direction-value opts :char-dir (if horizontal-ltr :ltr :rtl))
+        line-dir (direction-value opts :line-dir default-line-dir)]
+    [(if upright line-dir (direction-value opts :line-dir-rotated char-dir))
+     (if upright char-dir (direction-value opts :char-dir-rotated line-dir))]))
+
+(defn- direction-coordinate [item direction]
+  (let [item (if (map? item) item (first item))]
+    (case direction
+      :ttb (double (:top item))
+      :btt (- (double (:bottom item)))
+      :ltr (double (:x0 item))
+      :rtl (- (double (:x1 item))))))
+
+(defn- direction-sort-key [item direction]
+  (let [item (if (map? item) item (first item))
+        nonblank (if (whitespace? (:text item)) 1 0)]
+    (case direction
+      :ttb [(double (:top item)) nonblank (double (:bottom item))]
+      :btt [(- (+ (double (:top item)) (double (:height item))))
+            nonblank
+            (- (double (:top item)))]
+      :ltr [(double (:x0 item))]
+      :rtl [(- (double (:x1 item)))])))
+
+(defn- cluster-items [items direction tolerance]
+  (let [coordinates (->> items
+                         (map #(direction-coordinate % direction))
+                         distinct
+                         sort)
+        coordinate-groups (reduce (fn [groups coordinate]
+                                    (if (and (seq groups)
+                                             (<= (- coordinate (last (peek groups)))
+                                                 tolerance))
+                                      (conj (pop groups) (conj (peek groups) coordinate))
+                                      (conj groups [coordinate])))
+                                  [] coordinates)
+        group-ids (into {}
+                        (mapcat (fn [[group-id group]]
+                                  (map #(vector % group-id) group))
+                                (map-indexed vector coordinate-groups)))]
+    (->> items
+         (group-by #(get group-ids (direction-coordinate % direction)))
+         (sort-by key)
+         (mapv val))))
 
 (defn- cluster-lines
-  "Group chars into lines from top to bottom by `:top` within `y-tol`."
-  [chars y-tol use-text-flow]
-  (reduce (fn [acc c]
-            (let [line (peek acc)
-                  ltop (some-> line first :top)]
-              (if (and ltop (<= (Math/abs (- (double (:top c)) (double ltop))) y-tol))
-                (conj (pop acc) (conj line c))
-                (conj acc [c]))))
-          []
-          (if use-text-flow chars (sort-by :top chars))))
+  "Group chars into lines using the configured line direction."
+  [chars opts]
+  (let [[line-dir _] (directions opts (:upright (first chars)))]
+    (if (and (= :ttb line-dir) (:upright (first chars)))
+      (reduce (fn [lines c]
+                (let [line (peek lines)
+                      line-baseline (some-> line first :y0)]
+                  (if (and line-baseline
+                           (<= (Math/abs (- (double (:y0 c))
+                                            (double line-baseline)))
+                               (:y-tolerance opts)))
+                    (conj (pop lines) (conj line c))
+                    (conj lines [c]))))
+              []
+              (if (:use-text-flow opts) chars (sort-by :top chars)))
+      (cluster-items chars line-dir
+                     (if (contains? #{:ltr :rtl} line-dir)
+                       (:x-tolerance opts)
+                       (:y-tolerance opts))))))
 
 (def ^:private ligatures
   {"ﬀ" "ff" "ﬁ" "fi" "ﬂ" "fl" "ﬃ" "ffi" "ﬄ" "ffl" "ﬅ" "ft" "ﬆ" "st"})
@@ -162,11 +301,12 @@
   "Split a line's chars into words. The chars are sorted left-to-right and
    retain whitespace.
    A whitespace char or a gap wider than `x-tol` starts a new word."
-  [line {:keys [x-tolerance keep-blank-chars horizontal-ltr extra-attrs
-                split-at-punctuation use-text-flow]
-         :or {horizontal-ltr true extra-attrs []}}]
-  (let [ordered (if use-text-flow line (sort-by :x0 line))
-        ordered (if horizontal-ltr ordered (reverse ordered))]
+  [line opts]
+  (let [{:keys [x-tolerance keep-blank-chars extra-attrs
+                split-at-punctuation use-text-flow]} opts
+        [_ char-dir] (directions opts (:upright (first line)))
+        ordered (if use-text-flow line
+                    (sort-by #(direction-sort-key % char-dir) line))]
    (loop [cs ordered, cur [], words []]
     (if-let [c (first cs)]
       (cond
@@ -175,12 +315,23 @@
 
         (and (seq cur)
              (or (attrs-changed? extra-attrs (peek cur) c)
-                 (> (if use-text-flow
-                      (Math/abs (- (double (:x0 c)) (double (:x1 (peek cur)))))
-                      (if horizontal-ltr
-                        (- (double (:x0 c)) (double (:x1 (peek cur))))
-                        (- (double (:x0 (peek cur))) (double (:x1 c)))))
-                    x-tolerance)))
+                 (let [prior (peek cur)
+                       [intra-tolerance interline-tolerance]
+                       (if (contains? #{:ttb :btt} char-dir)
+                         [(:y-tolerance opts) (:x-tolerance opts)]
+                         [(:x-tolerance opts) (:y-tolerance opts)])
+                       gap (case char-dir
+                             :ltr (- (double (:x0 c)) (double (:x1 prior)))
+                             :rtl (- (double (:x0 prior)) (double (:x1 c)))
+                             :ttb (- (double (:top c)) (double (:bottom prior)))
+                             :btt (- (double (:top prior)) (double (:bottom c))))
+                       orthogonal-gap (if (contains? #{:ttb :btt} char-dir)
+                                        (Math/abs (- (double (:x0 c))
+                                                     (double (:x0 prior))))
+                                        (Math/abs (- (double (:y0 c))
+                                                     (double (:y0 prior)))))]
+                   (or (> (if use-text-flow (Math/abs gap) gap) intra-tolerance)
+                       (> orthogonal-gap interline-tolerance)))))
         (recur (rest cs) [c] (conj words cur))
 
         (punctuation? split-at-punctuation (:text c))
@@ -192,24 +343,27 @@
         (recur (rest cs) (conj cur c) words))
       (cond-> words (seq cur) (conj cur))))))
 
-(defn- word-data [doc opts]
+(defn- word-data-from-chars [cs opts]
   (let [opts (merge {:x-tolerance default-tolerance
                      :y-tolerance default-tolerance
                      :horizontal-ltr true
                      :extra-attrs []
                      :expand-ligatures true}
                     (normalize-options opts))
-        cs (chars doc opts)
-        char-groups (->> cs
-                         (partition-by #(select-keys % (into [:upright] (:extra-attrs opts))))
-                         (mapcat #(cluster-lines % opts)))
-        groups (mapv #(line-word-groups % opts) char-groups)]
-    {:opts opts :lines char-groups :groups groups
+        lines (->> cs
+                   (partition-by #(select-keys % (into [:upright] (:extra-attrs opts))))
+                   (mapcat #(cluster-lines % opts))
+                   vec)
+        groups (mapv #(line-word-groups % opts) lines)]
+    {:opts opts :lines lines :groups groups
      :words (mapv (fn [line-groups]
                     (mapv #(merge-word % (:extra-attrs opts)
                                        (:expand-ligatures opts))
                           line-groups))
                   groups)}))
+
+(defn- word-data [doc opts]
+  (word-data-from-chars (chars doc opts) opts))
 
 (defn words
   "Vector of word maps `{:text :x0 :top :x1 :bottom :page-number}` in reading order.
@@ -258,6 +412,23 @@
                          (range) groups))]
      {:text (apply str (map second tuples)) :tuples tuples})))
 
+(defn text-from-chars
+  "Reconstruct text from character maps."
+  ([char-records] (text-from-chars char-records {}))
+  ([char-records opts]
+   (let [{:keys [words groups opts]} (word-data-from-chars char-records opts)
+         pairs (vec (mapcat (fn [word-line char-line]
+                              (map vector word-line char-line))
+                            words groups))
+         line-dir (direction-value opts :line-dir default-line-dir)
+         line-tolerance (if (contains? #{:ltr :rtl} line-dir)
+                          (:x-tolerance opts)
+                          (:y-tolerance opts))
+         render-lines (cluster-items pairs line-dir line-tolerance)]
+     (str/join "\n"
+               (map (fn [line]
+                      (str/join " " (map (comp :text first) line)))
+                    render-lines)))))
 (defn- layout-text [doc opts]
   (let [{:keys [words]} (word-data doc opts)
         density (double (or (:x-density opts) 7.25))]
@@ -339,22 +510,36 @@
          matches)))))
 
 (defn dedupe-char-records
-  "Remove duplicate chars within positional `:tolerance`. It compares `:text`
-   plus configurable `:compare-attrs` (default fontname, size, upright)."
+  "Remove duplicate chars within positional `:tolerance`."
   ([char-records] (dedupe-char-records char-records {}))
-  ([char-records {:keys [tolerance compare-attrs extra-attrs]
-                  :or {tolerance 1.0}}]
-   (let [attrs (vec (distinct (cons :text (or compare-attrs extra-attrs
-                                                [:fontname :size :upright]))))
-         same? (fn [a b]
-                 (and (every? #(= (get a %) (get b %)) attrs)
-                      (<= (Math/abs (- (double (:x0 a)) (double (:x0 b))))
-                          tolerance)
-                      (<= (Math/abs (- (double (:doctop a)) (double (:doctop b))))
-                          tolerance)))]
-     (reduce (fn [kept c]
-               (if (some #(same? % c) kept) kept (conj kept c)))
-             [] char-records))))
+  ([char-records opts]
+   (let [opts (normalize-options opts)
+         tolerance (double (or (:tolerance opts) 1.0))
+         extra-attrs (cond
+                       (contains? opts :extra-attrs) (:extra-attrs opts)
+                       (contains? opts :compare-attrs) (:compare-attrs opts)
+                       :else [:fontname :size])
+         attrs (vec (distinct (concat [:upright :text] extra-attrs)))
+         cluster (fn [records attr]
+                   (reduce (fn [groups record]
+                             (if (and (seq groups)
+                                      (<= (- (double (get record attr))
+                                             (double (get (peek (peek groups)) attr)))
+                                          tolerance))
+                               (conj (pop groups) (conj (peek groups) record))
+                               (conj groups [record])))
+                           []
+                           (sort-by attr records)))
+         indexed (map-indexed vector char-records)
+         groups (vals (group-by (fn [[_ record]] (mapv #(get record %) attrs)) indexed))
+         deduped (mapcat (fn [group]
+                           (mapcat #(cluster % :x0)
+                                   (cluster (map second group) :doctop)))
+                         groups)]
+     (->> deduped
+          (map #(first (sort-by (juxt :doctop :x0) %)))
+          (sort-by #(.indexOf ^java.util.List (vec char-records) %))
+          vec))))
 
 (defn dedupe-chars
   "Extract chars and remove positional duplicates. Extraction and comparison

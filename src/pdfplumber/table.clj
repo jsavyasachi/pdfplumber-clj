@@ -325,17 +325,28 @@
         (recur (reduce disj remaining component) (conj components component)))
       components)))
 
-(defn- cell-text [char-records bbox opts]
-  (->> char-records
-       (filter #(g/within? bbox (g/center [(:x0 %) (:top %) (:x1 %) (:bottom %)])))
-       (text/text-from-chars opts)))
+(defn- cell-text [words char-records bbox opts]
+  (let [within? #(g/within? bbox (g/center [(:x0 %) (:top %) (:x1 %) (:bottom %)]))
+        cell-chars (filter within? char-records)]
+    (if (every? :upright cell-chars)
+      (->> words
+           (filter within?)
+           (sort-by (juxt :top :x0))
+           (map :text)
+           (str/join " "))
+      (text/text-from-chars
+       cell-chars
+       (cond-> opts
+         (= 90 (:page-rotation opts))
+         (assoc :line-dir :ttb :char-dir :ltr
+                :line-dir-rotated :ttb :char-dir-rotated :ltr))))))
 
-(defn- assemble-rows [cells char-records tolerance opts]
+(defn- assemble-rows [cells words char-records tolerance opts]
   (->> cells
        (group-by (fn [[_ top]] (Math/round (/ (double top) tolerance))))
        (sort-by key)
        (mapv (fn [[_ row]]
-               (mapv (fn [bbox] {:text (cell-text char-records bbox opts) :bbox bbox})
+               (mapv (fn [bbox] {:text (cell-text words char-records bbox opts) :bbox bbox})
                      (sort-by first row))))))
 
 (defn- component-bbox [cells]
@@ -362,6 +373,8 @@
         page-box (.getMediaBox page)
         page-height (double (.getHeight page-box))
         word-rotation (if (> (.getWidth page-box) (.getHeight page-box)) rotation 0)
+        char-records (rotate-words (text/chars doc opts) word-rotation page-height)
+        table-opts (assoc opts :page-rotation rotation)
         words (rotate-words (text/words doc (merge opts text-opts)) word-rotation page-height)
         objs (objects/objects doc opts)
         edges (strategy-edges doc words objs opts)
@@ -383,10 +396,10 @@
                   {:page-number (or (:page opts) (:page-number (first words)) 1)
                    :strategy (table-strategy opts)
                    :bbox bbox
-                   :rows (assemble-rows cells words
+                   :rows (assemble-rows cells words char-records
                                         (max 0.001 (double (or (:snap-y-tolerance opts)
                                                                (:snap-tolerance opts))))
-                                        opts)
+                                        table-opts)
                    :cells cells
                    :debug (cond-> {:horizontal-lines (count region-h)
                                    :vertical-lines (count region-v)
