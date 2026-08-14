@@ -344,7 +344,16 @@
                            (count count-matches) (count page-recalls)
                            (or (median (map :recall page-recalls)) 0.0)))
           (when (seq worst-files)
-            (println "  worst box recall:" (mapv (juxt :name :recall) worst-files)))))
+            (println "  worst box recall:" (mapv (juxt :name :recall) worst-files)))
+          (let [count-mismatches (->> page-recalls
+                                      (remove :count-match)
+                                      (mapv (fn [{:keys [name page clj-count python-count]}]
+                                              {:file name
+                                               :page page
+                                               :ours clj-count
+                                               :python python-count})))]
+            (when (seq count-mismatches)
+              (println "  count mismatch:" count-mismatches)))))
       (testing "the golden actually holds a corpus"
         ;; This guards the other direction. A golden that compares nothing could
         ;; otherwise satisfy each assertion below vacuously.
