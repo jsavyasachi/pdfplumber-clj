@@ -43,6 +43,16 @@
           (is (approx= 292.0 (:top r)))
           (is (approx= 392.0 (:bottom r))))))))
 
+(deftest transformed-decimal-graphics-preserve-coordinate-arithmetic
+  (pdf/with-pdf [d (fix/transformed-graphics-pdf)]
+    (let [rect (first (pdf/rects d))
+          curve (first (pdf/curves d))]
+      (is (= [165.98629615 526.902336036 275.8719805 539.094850596]
+             (mapv rect [:x0 :top :x1 :bottom])))
+      (is (= [69.96960204999999 429.36152823599997
+              110.99623435000001 429.36152823599997]
+             (mapv curve [:x0 :top :x1 :bottom]))))))
+
 (deftest negative-height-rect-preserves-operand-arithmetic
   (pdf/with-pdf [d (fix/negative-height-rect-pdf)]
     (is (= 164.43500000000006

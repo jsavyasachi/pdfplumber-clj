@@ -542,7 +542,25 @@
             (.newLineAtOffset cs (float (- edge width)) (float y))
             (.showText cs ^String s)
             (.endText cs))))
-      (->bytes doc))))
+    (->bytes doc))))
+
+(defn transformed-graphics-pdf
+  "Single page with decimal rectangles and curves under a non-identity transform."
+  ^bytes []
+  (with-open [doc (PDDocument.)]
+    (let [page (PDPage. PDRectangle/LETTER)]
+      (.addPage doc page)
+      (with-open [cs (PDPageContentStream. doc page)]
+        (.transform cs (Matrix. 1.2345 0.0 0.0 0.9876 13.579 21.246))
+        (.addRect cs (float 123.4567) (float 234.5678)
+                  (float 89.0123) (float 12.3456))
+        (.stroke cs)
+        (.moveTo cs (float 45.6789) (float 345.6789))
+        (.curveTo cs (float 56.7891) (float 356.7891)
+                  (float 67.8912) (float 334.5678)
+                  (float 78.9123) (float 345.6789))
+        (.stroke cs)))
+    (->bytes doc)))
 
 (defn two-tables-pdf
   "Single page with two spatially separate ruled 2x2 tables. Returns byte[]."
