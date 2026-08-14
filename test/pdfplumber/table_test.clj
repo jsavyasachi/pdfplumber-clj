@@ -62,6 +62,27 @@
                            "Basse")]
     (is (= "Bas" (cell-text words chars [0.0 0.0 16.0 20.0] {})))))
 
+(deftest cell-text-orders-words-by-line-then-x
+  (let [cell-text (private-var 'cell-text)
+        words [{:text "A" :x0 10.0 :top 1.0 :x1 14.0 :bottom 8.0}
+               {:text "B" :x0 20.0 :top 0.0 :x1 24.0 :bottom 7.0}]
+        chars (map #(assoc % :upright true :y0 (- 20.0 (:bottom %))) words)]
+    (is (= "A B" (cell-text words chars [0.0 0.0 100.0 20.0] {})))))
+
+(deftest cell-text-ignores-a-crossing-word-on-another-line
+  (let [cell-text (private-var 'cell-text)
+        words [{:text "Basse" :x0 10.0 :top 1.0 :x1 20.0 :bottom 8.0}]
+        chars [{:text "B" :x0 10.0 :top 10.0 :x1 12.0 :bottom 21.0
+                :y0 10.0 :upright true}]]
+    (is (= "" (cell-text words chars [0.0 10.0 16.0 20.0] {})))))
+
+(deftest cell-text-excludes-glyphs-on-the-right-and-bottom-edges
+  (let [cell-text (private-var 'cell-text)
+        words [{:text "edge" :x0 10.0 :top 1.0 :x1 12.0 :bottom 8.0}]
+        chars [{:text "e" :x0 10.0 :top 1.0 :x1 12.0 :bottom 8.0
+                :y0 12.0 :upright true}]]
+    (is (= "" (cell-text words chars [0.0 0.0 11.0 10.0] {})))))
+
 (deftest lines-strategy
   (pdf/with-pdf [d (fix/table-pdf)]
     (let [t (pdf/extract-table d {:page 1 :strategy :lines})]

@@ -326,21 +326,41 @@
       components)))
 
 (defn- cell-word-text [words within? y-tolerance]
-  (->> (filter within? words)
-       (sort-by (juxt :top :x0))
+  (->> (text-rows (filter within? words) y-tolerance)
+       (mapcat #(sort-by :x0 %))
        (map :text)
        (str/join " ")))
 
+(defn- multiline-cell? [char-records y-tolerance]
+  (loop [remaining (sort-by :top char-records)
+         line-top nil]
+    (if-let [character (first remaining)]
+      (if (or (nil? line-top)
+              (<= (Math/abs (- (double (:top character)) (double line-top)))
+                  y-tolerance))
+        (recur (rest remaining) (or line-top (:top character)))
+        true)
+      false)))
+
 (defn- cell-text [words char-records bbox opts]
   (let [[cell-x0 cell-top cell-x1 cell-bottom] bbox
-        within? #(g/within? bbox (g/center [(:x0 %) (:top %) (:x1 %) (:bottom %)]))
+        within? (fn [{:keys [x0 top x1 bottom]}]
+                  (let [[center-x center-y] (g/center [x0 top x1 bottom])]
+                    (and (<= cell-x0 center-x)
+                         (< center-x cell-x1)
+                         (<= cell-top center-y)
+                         (< center-y cell-bottom))))
         cell-chars (filter within? char-records)
         word-crosses-cell?
         (some (fn [{word-x0 :x0 word-x1 :x1}]
                 (and (< (double word-x0) cell-x1)
                      (> (double word-x1) cell-x0)
                      (or (< (double word-x0) cell-x0)
-                         (> (double word-x1) cell-x1))))
+                         (> (double word-x1) cell-x1))
+                     (or (empty? cell-chars)
+                         (some (fn [{char-x0 :x0 char-top :top char-x1 :x1 char-bottom :bottom}]
+                                 (g/contains? bbox [char-x0 char-top char-x1 char-bottom]))
+                               cell-chars))))
               words)
         text-opts (into {}
                         (keep (fn [[k v]]
@@ -348,13 +368,16 @@
                                   (when (str/starts-with? n "text-")
                                     [(keyword (subs n 5)) v]))))
                         opts)]
-    (if (and (every? #(or (:upright %) (:content-horizontal %)) cell-chars)
+    (if (and (not (and (zero? (or (:page-rotation opts) 0))
+                       (multiline-cell? cell-chars
+                                        (double (or (:text-y-tolerance opts) 3.0)))))
+             (every? #(or (:upright %) (:content-horizontal %)) cell-chars)
              (not word-crosses-cell?))
       (cell-word-text words within?
                       (double (or (:text-y-tolerance opts) 3.0)))
       (text/text-from-chars
        cell-chars
-       (cond-> text-opts
+       (cond-> (assoc text-opts :cluster-by-top true)
          (= 90 (:page-rotation opts))
          (assoc :line-dir :ttb :char-dir :ltr
                 :line-dir-rotated :ttb :char-dir-rotated :ltr))))))

@@ -119,6 +119,13 @@
                {:text "h" :x0 10.0 :top 74.99 :x1 20.0 :bottom 80.5 :upright false}]]
     (is (= "t h" (text/text-from-chars chars)))))
 
+(deftest text-from-chars-separates-top-shifted-glyphs
+  (let [chars [{:text "A" :x0 0.0 :x1 5.0 :top 0.0 :bottom 10.0
+                :y0 20.0 :y1 30.0 :upright true}
+               {:text "2" :x0 5.0 :x1 8.0 :top 5.0 :bottom 10.0
+                :y0 20.0 :y1 30.0 :upright true}]]
+    (is (= "A\n2" (text/text-from-chars chars {:cluster-by-top true})))))
+
 (deftest page-rotation-orders-text
   (pdf/with-pdf [d (fix/page-rotated-text-pdf)]
     (is (= "elif FDP ymmuD" (pdf/text d)))))

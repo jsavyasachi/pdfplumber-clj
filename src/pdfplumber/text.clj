@@ -62,15 +62,15 @@
 
 (defn- text-for-position [^TextPosition tp]
   (let [unicode (.getUnicode tp)]
-    (if (seq unicode)
-      unicode
-      (or (some #(.toUnicode ^org.apache.pdfbox.pdmodel.font.PDFont
-                             (.getFont tp) (int %))
-                (.getCharacterCodes tp))
-          ""))))
+    (or (some #(.toUnicode ^org.apache.pdfbox.pdmodel.font.PDFont
+                           (.getFont tp) (int %))
+              (.getCharacterCodes tp))
+        (when (seq unicode) unicode)
+        "")))
 
 (defn- tp->char [^TextPosition tp page-no page-width page-height rotation doctop-offset]
-  (let [[scale-x shear-y shear-x scale-y translate-x translate-y :as matrix]
+  (let [text (text-for-position tp)
+        [scale-x shear-y shear-x scale-y translate-x translate-y :as matrix]
         (matrix-values (.getTextMatrix tp))
         raw-x0 (double (.getXDirAdj tp))
         w (double (.getWidthDirAdj tp))
@@ -113,7 +113,7 @@
                        content-horizontal?))
         fontname (some-> (.getFont tp) .getName)
         size (double (.getFontSizeInPt tp))]
-    {:text (text-for-position tp)
+    {:text text
      :x0 x0
      :top top
      :x1 x1
@@ -284,9 +284,10 @@
     (if (and (= :ttb line-dir) (:upright (first chars)))
       (reduce (fn [lines c]
                 (let [line (peek lines)
-                      line-baseline (some-> line first :y0)]
+                      line-key (if (:cluster-by-top opts) :top :y0)
+                      line-baseline (some-> line first line-key)]
                   (if (and line-baseline
-                           (<= (Math/abs (- (double (:y0 c))
+                           (<= (Math/abs (- (double (get c line-key))
                                             (double line-baseline)))
                                (:y-tolerance opts)))
                     (conj (pop lines) (conj line c))
@@ -351,11 +352,12 @@
                              :rtl (- (double (:x0 prior)) (double (:x1 c)))
                              :ttb (- (double (:top c)) (double (:bottom prior)))
                              :btt (- (double (:top prior)) (double (:bottom c))))
-                       orthogonal-gap (if (contains? #{:ttb :btt} char-dir)
-                                        (Math/abs (- (double (:x0 c))
-                                                     (double (:x0 prior))))
-                                        (Math/abs (- (double (:y0 c))
-                                                     (double (:y0 prior)))))]
+                       orthogonal-coordinate (if (contains? #{:ttb :btt} char-dir)
+                                               :x0
+                                               (if (:cluster-by-top opts) :top :y0))
+                       orthogonal-gap (Math/abs
+                                       (- (double (get c orthogonal-coordinate))
+                                          (double (get prior orthogonal-coordinate))))]
                    (or (> (if use-text-flow (Math/abs gap) gap) intra-tolerance)
                        (> orthogonal-gap interline-tolerance)))))
         (recur (rest cs) [c] (conj words cur))
@@ -376,6 +378,9 @@
                      :extra-attrs []
                      :expand-ligatures true}
                     (normalize-options opts))
+        opts (assoc opts :cluster-by-top
+                    (or (:cluster-by-top opts)
+                        (some #(not (:upright %)) cs)))
         lines (->> cs
                    (partition-by #(select-keys % (into [:upright] (:extra-attrs opts))))
                    (mapcat #(cluster-lines % opts))
