@@ -25,11 +25,11 @@
    :images 0.95
    :annots 0.95})
 (def ^:private object-imperfect-page-ceilings
-  {:rects 61
-   :lines 9
-   :curves 17
+  {:rects 57
+   :lines 5
+   :curves 16
    :images 3
-   :annots 11})
+   :annots 8})
 
 (def ^:private object-extractors
   {:rects pdf/rects
