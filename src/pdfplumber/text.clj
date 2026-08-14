@@ -29,14 +29,6 @@
    (double (.getTranslateX matrix))
    (double (.getTranslateY matrix))])
 
-(defn- rotate-bbox [[x0 top x1 bottom] page-width page-height rotation]
-  (case (int rotation)
-    90 [(- page-height bottom) x0 (- page-height top) x1]
-    180 [(- page-width x1) (- page-height bottom)
-         (- page-width x0) (- page-height top)]
-    270 [top (- page-width x1) bottom (- page-width x0)]
-    [x0 top x1 bottom]))
-
 (defn- content-bbox [^org.apache.pdfbox.pdmodel.font.PDFont font
                     page-height [scale-x shear-y shear-x scale-y translate-x translate-y]
                     glyph-advance]
@@ -103,8 +95,8 @@
                                          (neg? determinant)))
         [x0 top x1 bottom] (cond
                              apply-page-rotation?
-                             (rotate-bbox [raw-x0 raw-top raw-x1 raw-bottom]
-                                          page-width page-height rotation)
+                             (g/rotate-bbox [raw-x0 raw-top raw-x1 raw-bottom]
+                                            page-width page-height rotation)
 
                              apply-content-rotation?
                              (content-bbox (.getFont tp) page-height matrix content-advance)

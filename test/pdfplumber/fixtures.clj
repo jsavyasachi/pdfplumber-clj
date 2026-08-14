@@ -722,6 +722,52 @@
           (.drawImage cs image (float 100) (float 600) (float 40) (float 30))))
       (->bytes doc))))
 
+(defn rotated-objects-pdf
+  "Single 90-degree rotated page with a line, rectangle, curve, image, and link."
+  ^bytes []
+  (with-open [doc (PDDocument.)]
+    (let [page (PDPage. PDRectangle/LETTER)
+          raster (BufferedImage. 2 3 BufferedImage/TYPE_INT_RGB)
+          link (doto (PDAnnotationLink.)
+                 (.setRectangle (PDRectangle. (float 50) (float 600) (float 40) (float 20)))
+                 (.setAction (doto (PDActionURI.) (.setURI "https://example.com"))))]
+      (.setRotation page 90)
+      (.addPage doc page)
+      (let [graphics (.createGraphics raster)]
+        (try
+          (.setColor graphics Color/RED)
+          (.fillRect graphics 0 0 2 3)
+          (finally (.dispose graphics))))
+      (.add (.getAnnotations page) link)
+      (let [image (LosslessFactory/createFromImage doc raster)]
+        (with-open [cs (PDPageContentStream. doc page)]
+          (.setLineWidth cs (float 1.0))
+          (.addRect cs (float 100) (float 500) (float 80) (float 40))
+          (.stroke cs)
+          (.moveTo cs (float 200) (float 400))
+          (.lineTo cs (float 300) (float 400))
+          (.stroke cs)
+          (.moveTo cs (float 300) (float 300))
+          (.curveTo cs (float 330) (float 350)
+                    (float 370) (float 250)
+                    (float 400) (float 350))
+          (.stroke cs)
+          (.drawImage cs image (float 400) (float 100) (float 50) (float 30))))
+      (->bytes doc))))
+
+(defn rotated-annotation-pdf
+  "Single page with one link annotation and the given page rotation."
+  ^bytes [rotation]
+  (with-open [doc (PDDocument.)]
+    (let [page (PDPage. PDRectangle/LETTER)
+          link (doto (PDAnnotationLink.)
+                 (.setRectangle (PDRectangle. (float 50) (float 600) (float 40) (float 20)))
+                 (.setAction (doto (PDActionURI.) (.setURI "https://example.com"))))]
+      (.setRotation page (int rotation))
+      (.add (.getAnnotations page) link)
+      (.addPage doc page)
+      (->bytes doc))))
+
 (defn pdf-with-metadata
   "Single-page PDF with the given document information set. `info` keys:
    :title :author :subject :keywords :creator. Returns byte[]."

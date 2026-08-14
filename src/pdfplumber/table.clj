@@ -50,14 +50,6 @@
                        [value mean]))]
     (mapv #(get lookup % %) vals)))
 
-(defn- rotate-edges [{:keys [h v]} rotation page-height]
-  (if (= rotation 90)
-    {:h (map (fn [{:keys [x top bottom]}]
-               {:y x :x0 (- page-height bottom) :x1 (- page-height top)}) v)
-     :v (map (fn [{:keys [y x0 x1]}]
-               {:x (- page-height y) :top x0 :bottom x1}) h)}
-    {:h h :v v}))
-
 (defn- curve-edges [curves]
   (reduce
    (fn [edges curve]
@@ -72,7 +64,7 @@
    {:h [] :v []}
    curves))
 
-(defn- source-edges [objs strict? rotation page-height page-x0 page-y0]
+(defn- source-edges [objs strict? page-x0 page-y0]
   (let [lines (filter #(= :line (:type %)) objs)
         rects (if strict? [] (filter #(= :rect (:type %)) objs))
         curves (if strict? [] (filter #(= :curve (:type %)) objs))
@@ -93,16 +85,14 @@
                      {:x (:x1 rect) :top (:top rect) :bottom (:bottom rect)}])
                   rects)
           curve-v)}]
-      (rotate-edges
-       {:h (map #(-> %
-                     (update :x0 - page-x0)
-                     (update :x1 - page-x0)
-                     (update :y + page-y0)) (:h edges))
-        :v (map #(-> %
-                     (update :x - page-x0)
-                     (update :top + page-y0)
-                     (update :bottom + page-y0)) (:v edges))}
-       rotation page-height))))
+      {:h (map #(-> %
+                   (update :x0 - page-x0)
+                   (update :x1 - page-x0)
+                   (update :y + page-y0)) (:h edges))
+       :v (map #(-> %
+                   (update :x - page-x0)
+                   (update :top + page-y0)
+                   (update :bottom + page-y0)) (:v edges))})))
 
 (defn- rotate-words [words rotation page-height]
   (if (= rotation 90)
@@ -223,14 +213,13 @@
 (defn- strategy-edges [doc words objs opts]
   (let [bbox (page-bbox doc opts)
         page (.getPage doc (dec (int (or (:page opts) 1))))
-        rotation (mod (.getRotation page) 360)
         media-box (.getMediaBox page)
         crop-box (.getCropBox page)
         page-height (double (.getHeight media-box))
         page-x0 (double (.getLowerLeftX crop-box))
         page-y0 (- (double (.getUpperRightY crop-box)) page-height)
-        line-edges (source-edges objs false rotation page-height page-x0 page-y0)
-        strict-edges (source-edges objs true rotation page-height page-x0 page-y0)
+        line-edges (source-edges objs false page-x0 page-y0)
+        strict-edges (source-edges objs true page-x0 page-y0)
         vertical-base (case (:vertical-strategy opts)
                    :lines (:v line-edges)
                    :lines-strict (:v strict-edges)

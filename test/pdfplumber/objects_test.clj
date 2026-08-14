@@ -158,6 +158,41 @@
           (is (= [-119 80 78 71]
                  (mapv int (take 4 (:bytes decoded))))))))))
 
+(deftest rotated-rect-coordinates
+  (pdf/with-pdf [d (fix/rotated-objects-pdf)]
+    (let [rect (first (pdf/rects d))]
+      (is (= [500.0 100.0 540.0 180.0]
+             (mapv rect [:x0 :top :x1 :bottom]))))))
+
+(deftest rotated-line-coordinates
+  (pdf/with-pdf [d (fix/rotated-objects-pdf)]
+    (let [line (first (pdf/lines d))]
+      (is (= [400.0 200.0 400.0 300.0]
+             (mapv line [:x0 :top :x1 :bottom]))))))
+
+(deftest rotated-curve-coordinates
+  (pdf/with-pdf [d (fix/rotated-objects-pdf)]
+    (let [curve (first (pdf/curves d))]
+      (is (= [300.0 300.0 350.0 400.0]
+             (mapv curve [:x0 :top :x1 :bottom])))
+      (is (= [[300.0 300.0] [350.0 400.0]]
+             (:pts curve))))))
+
+(deftest rotated-image-coordinates
+  (pdf/with-pdf [d (fix/rotated-objects-pdf)]
+    (let [image (first (pdf/images d))]
+      (is (= [100.0 400.0 130.0 450.0]
+             (mapv image [:x0 :top :x1 :bottom]))))))
+
+(deftest rotated-annotation-coordinates
+  (doseq [[rotation expected] [[90 [600 50 620 90]]
+                               [180 [522 600 562 620]]
+                               [270 [172 522 192 562]]]]
+    (pdf/with-pdf [d (fix/rotated-annotation-pdf rotation)]
+      (let [annot (first (pdf/annots d))]
+        (is (= expected
+               (mapv annot [:x0 :top :x1 :bottom])))))))
+
 (deftest no-images
   (pdf/with-pdf [d (fix/simple-text-pdf)]
     (is (= [] (pdf/images d)))))
