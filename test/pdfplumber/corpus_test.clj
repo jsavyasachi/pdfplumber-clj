@@ -12,7 +12,8 @@
             [clojure.java.io :as io]
             [clojure.set :as set]
             [clojure.string :as str]
-            [pdfplumber.core :as pdf]))
+            [pdfplumber.core :as pdf])
+  (:import [java.math BigDecimal RoundingMode]))
 
 (def ^:private golden-file (io/file "corpus/golden.json"))
 (def ^:private corpus-dir "corpus/pdfplumber")
@@ -25,11 +26,11 @@
    :images 0.95
    :annots 0.95})
 (def ^:private object-imperfect-page-ceilings
-  {:rects 57
-   :lines 5
-   :curves 16
-   :images 3
-   :annots 8})
+  {:rects 14
+   :lines 2
+   :curves 5
+   :images 2
+   :annots 0})
 
 (def ^:private object-extractors
   {:rects pdf/rects
@@ -126,7 +127,7 @@
                                 {:recall 0.5}]))))
 
 (defn- rounded-coordinate [n]
-  (/ (double (Math/round (* 100.0 (double n)))) 100.0))
+  (.doubleValue (.setScale (BigDecimal. (double n)) 2 RoundingMode/HALF_EVEN)))
 
 (defn- object-box [object]
   (mapv (comp rounded-coordinate object) [:x0 :top :x1 :bottom]))

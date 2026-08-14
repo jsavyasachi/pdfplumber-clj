@@ -241,6 +241,17 @@
         (.addRect cs (float 100) (float 400) (float 200) (float 100)) (.stroke cs)))
     (->bytes doc)))
 
+(defn negative-height-rect-pdf
+  "Single page with a rectangle operator whose height is negative."
+  ^bytes []
+  (with-open [doc (PDDocument.)]
+    (let [page (PDPage. (PDRectangle. (float 519.0) (float 680.0)))]
+      (.addPage doc page)
+      (with-open [cs (PDPageContentStream. doc page)]
+        (.addRect cs (float 402.52) (float 517.039) (float 90.709) (float -1.474))
+        (.stroke cs)))
+    (->bytes doc)))
+
 (defn near-tolerance-cells-pdf
   "Single page with two vertically adjacent cell rectangles separated by a near-tolerance gap."
   ^bytes []
