@@ -2,7 +2,7 @@
   (:require [clojure.test :refer [deftest testing is]]
             [pdfplumber.core :as pdf]
             [pdfplumber.fixtures :as fix])
-  (:import [org.apache.pdfbox.cos COSName]
+  (:import [org.apache.pdfbox.cos COSFloat COSName]
            [org.apache.pdfbox.pdmodel PDDocument PDPage]
            [org.apache.pdfbox.pdmodel.common PDRectangle]
            [org.apache.pdfbox.pdmodel.interactive.form PDAcroForm PDTextField]))
@@ -52,6 +52,14 @@
       (is (= [69.96960204999999 429.36152823599997
               110.99623435000001 429.36152823599997]
              (mapv curve [:x0 :top :x1 :bottom]))))))
+
+(deftest cos-float-value-uses-written-representation
+  (let [number (proxy [COSFloat] ["123456789.123"]
+                 (toString [] "not-debug0.0"))
+        value-fn (var-get #'pdfplumber.objects/cos-number-value)
+        precise-fn (var-get #'pdfplumber.objects/precise-number?)]
+    (is (= 123456789.123 (value-fn number)))
+    (is (true? (precise-fn number)))))
 
 (deftest negative-height-rect-preserves-operand-arithmetic
   (pdf/with-pdf [d (fix/negative-height-rect-pdf)]

@@ -54,15 +54,18 @@
 
 (defn- cos-number-value [value]
   (if (instance? COSFloat value)
-    (let [text (.toString ^COSFloat value)]
-      (Double/parseDouble (subs text 9 (dec (count text)))))
+    (let [out (ByteArrayOutputStream.)]
+      (.writePDF ^COSFloat value out)
+      (let [text (String. (.toByteArray out) "ISO-8859-1")]
+        (Double/parseDouble text)))
     (double (.floatValue ^COSNumber value))))
 
 (defn- precise-number? [value]
   (and (instance? COSFloat value)
-       (let [text (.toString ^COSFloat value)]
-         (not= (subs text 9 (dec (count text)))
-               (Float/toString (.floatValue ^COSFloat value))))))
+       (let [out (ByteArrayOutputStream.)]
+         (.writePDF ^COSFloat value out)
+         (let [text (String. (.toByteArray out) "ISO-8859-1")]
+           (not= text (Float/toString (.floatValue ^COSFloat value)))))))
 
 (defn- precise-operands? [operands]
   (some precise-number? operands))
