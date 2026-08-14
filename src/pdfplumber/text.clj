@@ -1,10 +1,10 @@
 (ns pdfplumber.text
   "Extract characters, words, and text with PDFBox's PDFTextStripper.
 
-   PDFTextStripper already reports direction-adjusted coordinates in a top-left
-   origin, so char maps are built directly from `getXDirAdj`/`getYDirAdj` without
-   a page-height flip. Words are formed by clustering chars into lines (within
-   `:y-tolerance`) and splitting on horizontal gaps wider than `:x-tolerance`."
+   PDFTextStripper reports direction-adjusted coordinates in a top-left origin.
+   Char maps normalize page and content rotations before word grouping. Words
+   are formed by clustering chars into lines (within `:y-tolerance`) and
+   splitting on horizontal gaps wider than `:x-tolerance`."
   (:refer-clojure :exclude [chars])
   (:require [clojure.string :as str]
             [pdfplumber.geometry :as g]
@@ -29,23 +29,71 @@
    (double (.getTranslateX matrix))
    (double (.getTranslateY matrix))])
 
-(defn- tp->char [^TextPosition tp page-no page-width page-height doctop-offset]
-  (let [[scale-x shear-y shear-x scale-y :as matrix] (matrix-values (.getTextMatrix tp))
+(defn- rotate-bbox [[x0 top x1 bottom] page-width page-height rotation]
+  (case (int rotation)
+    90 [(- page-height bottom) x0 (- page-height top) x1]
+    180 [(- page-width x1) (- page-height bottom)
+         (- page-width x0) (- page-height top)]
+    270 [top (- page-width x1) bottom (- page-width x0)]
+    [x0 top x1 bottom]))
+
+(defn- rotate-content-bbox [_raw-bbox
+                           page-height shear-x shear-y translate-x translate-y
+                           glyph-height]
+   [(if (pos? shear-x)
+     translate-x
+     (- translate-x (Math/abs (double shear-y))))
+   (if (neg? shear-y)
+     (- page-height translate-y)
+     (- page-height (+ translate-y glyph-height)))
+   (if (pos? shear-x)
+     (+ translate-x (Math/abs (double shear-y)))
+     translate-x)
+   (if (neg? shear-y)
+     (+ (- page-height translate-y) glyph-height)
+     (- page-height translate-y))])
+
+(defn- tp->char [^TextPosition tp page-no page-width page-height rotation doctop-offset]
+  (let [[scale-x shear-y shear-x scale-y translate-x translate-y :as matrix]
+        (matrix-values (.getTextMatrix tp))
         raw-x0 (double (.getXDirAdj tp))
         w (double (.getWidthDirAdj tp))
         h (double (.getHeightDir tp))
         raw-bottom (double (.getYDirAdj tp))
         raw-top (- raw-bottom h)
-        [x0 x1] (cond
-                  (and (< scale-x 0.0) (< scale-y 0.0))
-                  [(- page-width raw-x0 w) (- page-width raw-x0)]
-                  (< scale-x 0.0)
-                  [(- raw-x0 w) raw-x0]
-                  :else
-                  [raw-x0 (+ raw-x0 w)])
-        [top bottom] (if (and (< scale-x 0.0) (< scale-y 0.0))
-                       [(- page-height raw-bottom) (- page-height raw-top)]
-                       [raw-top raw-bottom])
+        [raw-x0 raw-top raw-x1 raw-bottom]
+        (cond
+          (and (< scale-x 0.0) (< scale-y 0.0))
+          [(- page-width raw-x0 w) (- page-height raw-bottom)
+           (- page-width raw-x0) (- page-height raw-top)]
+          (< scale-x 0.0)
+          [(- raw-x0 w) raw-top raw-x0 raw-bottom]
+          :else
+          [raw-x0 raw-top (+ raw-x0 w) raw-bottom])
+        content-horizontal? (>= (Math/abs (double scale-x))
+                                (Math/abs (double shear-y)))
+        apply-page-rotation? (and content-horizontal?
+                               (contains? #{180 270} rotation))
+        apply-content-rotation? (and (not content-horizontal?)
+                                     (zero? rotation)
+                                     (> page-width page-height))
+        [x0 top x1 bottom] (cond
+                             apply-page-rotation?
+                             (rotate-bbox [raw-x0 raw-top raw-x1 raw-bottom]
+                                          page-width page-height rotation)
+
+                             apply-content-rotation?
+                             (rotate-content-bbox [raw-x0 raw-top raw-x1 raw-bottom]
+                                                  page-height shear-x shear-y
+                                                  translate-x translate-y h)
+
+                             :else
+                             [raw-x0 raw-top raw-x1 raw-bottom])
+        determinant (- (* scale-x scale-y) (* shear-y shear-x))
+        upright (and (pos? determinant)
+                     (if (= 270 rotation)
+                       (not content-horizontal?)
+                       content-horizontal?))
         fontname (some-> (.getFont tp) .getName)
         size (double (.getFontSizeInPt tp))]
     {:text (.getUnicode tp)
@@ -55,13 +103,13 @@
      :bottom bottom
      :y0 (- page-height bottom)
      :y1 (- page-height top)
-     :width w
-     :height h
+     :width (- x1 x0)
+     :height (- bottom top)
      :doctop (+ doctop-offset top)
      :fontname fontname
      :size size
      :adv w
-     :upright (pos? (- (* scale-x scale-y) (* shear-y shear-x)))
+     :upright upright
      :matrix matrix
      :object-type :char
      ;; Legacy spellings are supported.
@@ -74,15 +122,15 @@
 
 (defn- collecting-stripper
   "A PDFTextStripper that adds each char map, tagged with `page-no`, to `acc`."
-  ^PDFTextStripper [acc page-no page-width page-height doctop-offset use-text-flow]
+  ^PDFTextStripper [acc page-no page-width page-height rotation doctop-offset use-text-flow]
   (if use-text-flow
     (proxy [PDFTextStripper] []
       (processTextPosition [^TextPosition tp]
-        (swap! acc conj (tp->char tp page-no page-width page-height doctop-offset))))
+        (swap! acc conj (tp->char tp page-no page-width page-height rotation doctop-offset))))
     (proxy [PDFTextStripper] []
       (writeString [^String _text ^List text-positions]
         (doseq [^TextPosition tp text-positions]
-          (swap! acc conj (tp->char tp page-no page-width page-height doctop-offset)))))))
+          (swap! acc conj (tp->char tp page-no page-width page-height rotation doctop-offset)))))))
 
 (defn- page-height [^PDDocument doc ^long p]
   (double (.getHeight (.getMediaBox (.getPage doc (dec (int p)))))))
@@ -92,9 +140,12 @@
 
 (defn- page-chars [^PDDocument doc ^long p use-text-flow]
   (let [acc (atom [])
-        width (double (.getWidth (.getMediaBox (.getPage doc (dec (int p))))))
+        page (.getPage doc (dec (int p)))
+        box (.getMediaBox page)
+        width (double (.getWidth box))
         height (page-height doc p)
-        ^PDFTextStripper stripper (collecting-stripper acc p width height
+        rotation (mod (.getRotation page) 360)
+        ^PDFTextStripper stripper (collecting-stripper acc p width height rotation
                                                        (doctop-offset doc p)
                                                        use-text-flow)]
     (.setSortByPosition stripper false)
@@ -142,7 +193,13 @@
        view-operations (page/apply-view view-operations)))))
 
 (defn- whitespace? [s]
-  (or (nil? s) (str/blank? s)))
+  (or (nil? s)
+      (str/blank? s)
+      (and (string? s)
+           (every? (fn [c]
+                     (or (Character/isWhitespace ^char c)
+                         (Character/isSpaceChar ^char c)))
+                   s))))
 
 (defn- direction-value [opts key default]
   (or (get opts key) default))
@@ -161,6 +218,17 @@
       :btt (- (double (:bottom item)))
       :ltr (double (:x0 item))
       :rtl (- (double (:x1 item))))))
+
+(defn- direction-sort-key [item direction]
+  (let [item (if (map? item) item (first item))
+        nonblank (if (whitespace? (:text item)) 1 0)]
+    (case direction
+      :ttb [(double (:top item)) nonblank (double (:bottom item))]
+      :btt [(- (+ (double (:top item)) (double (:height item))))
+            nonblank
+            (- (double (:top item)))]
+      :ltr [(double (:x0 item))]
+      :rtl [(- (double (:x1 item)))])))
 
 (defn- cluster-items [items direction tolerance]
   (let [coordinates (->> items
@@ -190,10 +258,10 @@
     (if (and (= :ttb line-dir) (:upright (first chars)))
       (reduce (fn [lines c]
                 (let [line (peek lines)
-                      line-top (some-> line first :top)]
-                  (if (and line-top
-                           (<= (Math/abs (- (double (:top c))
-                                            (double line-top)))
+                      line-baseline (some-> line first :y0)]
+                  (if (and line-baseline
+                           (<= (Math/abs (- (double (:y0 c))
+                                            (double line-baseline)))
                                (:y-tolerance opts)))
                     (conj (pop lines) (conj line c))
                     (conj lines [c]))))
@@ -238,7 +306,7 @@
                 split-at-punctuation use-text-flow]} opts
         [_ char-dir] (directions opts (:upright (first line)))
         ordered (if use-text-flow line
-                    (sort-by #(direction-coordinate % char-dir) line))]
+                    (sort-by #(direction-sort-key % char-dir) line))]
    (loop [cs ordered, cur [], words []]
     (if-let [c (first cs)]
       (cond
@@ -260,8 +328,8 @@
                        orthogonal-gap (if (contains? #{:ttb :btt} char-dir)
                                         (Math/abs (- (double (:x0 c))
                                                      (double (:x0 prior))))
-                                        (Math/abs (- (double (:top c))
-                                                     (double (:top prior)))))]
+                                        (Math/abs (- (double (:y0 c))
+                                                     (double (:y0 prior)))))]
                    (or (> (if use-text-flow (Math/abs gap) gap) intra-tolerance)
                        (> orthogonal-gap interline-tolerance)))))
         (recur (rest cs) [c] (conj words cur))

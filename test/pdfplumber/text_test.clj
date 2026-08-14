@@ -2,7 +2,8 @@
   (:require [clojure.test :refer [deftest testing is]]
             [clojure.string :as str]
             [pdfplumber.core :as pdf]
-            [pdfplumber.fixtures :as fix]))
+            [pdfplumber.fixtures :as fix]
+            [pdfplumber.text :as text]))
 
 (deftest chars-extraction
   (pdf/with-pdf [d (fix/simple-text-pdf)]
@@ -87,6 +88,33 @@
 (deftest character-direction-uses-text-matrix
   (pdf/with-pdf [d (fix/reflected-text-pdf)]
     (is (false? (:upright (first (pdf/chars d)))))))
+
+(deftest quarter-turned-text-is-not-upright
+  (pdf/with-pdf [d (fix/vertical-text-pdf)]
+    (let [[a b] (pdf/chars d)]
+      (is (false? (:upright a)))
+      (is (= (:x0 a) (:x0 b)))
+      (is (< (:top a) (:top b)))
+      (is (= ["t" "h"] (mapv :text (pdf/words d)))))))
+
+(deftest rotated-word-sorting-breaks-on-overlapping-space
+  (let [chars [{:text " " :x0 10.0 :top 72.0 :x1 20.0 :bottom 74.4 :upright false}
+               {:text "t" :x0 10.0 :top 72.0 :x1 20.0 :bottom 75.2 :upright false}
+               {:text "h" :x0 10.0 :top 74.99 :x1 20.0 :bottom 80.5 :upright false}]]
+    (is (= "t h" (text/text-from-chars chars)))))
+
+(deftest page-rotation-orders-text
+  (pdf/with-pdf [d (fix/page-rotated-text-pdf)]
+    (is (= "elif FDP ymmuD" (pdf/text d)))))
+
+(deftest non-breaking-space-separates-words
+  (pdf/with-pdf [d (fix/non-breaking-space-text-pdf)]
+    (is (= "Broad Agency" (pdf/text d)))))
+
+(deftest mixed-fonts-share-a-baseline
+  (pdf/with-pdf [d (fix/mixed-font-baseline-pdf)]
+    (is (= "BlackRed" (pdf/text d)))
+    (is (= 1 (count (pdf/words d))))))
 
 (deftest text-maps-and-layout
   (pdf/with-pdf [d (fix/advanced-text-pdf)]
