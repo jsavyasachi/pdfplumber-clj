@@ -2,6 +2,16 @@
 
 All notable changes to this project are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.9.0] - 2026-08-13
+
+### Fixed
+- Graphics coordinates keep the decimal the document holds. A coordinate is
+  stored as a 32-bit float, and widening it to a double added the digits of the
+  binary expansion, so a coordinate written as 841.68 read as 841.6799926757812.
+- A rectangle operator with a negative width or height takes its bounds from the
+  operator arguments. The bounds came from the corner points, which apply the
+  arithmetic in a different order and shift the edge.
+
 ## [1.8.0] - 2026-08-13
 
 ### Fixed
