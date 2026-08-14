@@ -199,10 +199,12 @@
                      :extra-attrs []
                      :expand-ligatures true}
                     (normalize-options opts))
-        lines (cluster-lines (chars doc opts) (:y-tolerance opts)
-                             (:use-text-flow opts))
-        groups (mapv #(line-word-groups % opts) lines)]
-    {:opts opts :lines lines :groups groups
+        cs (chars doc opts)
+        char-groups (->> cs
+                         (partition-by #(select-keys % (into [:upright] (:extra-attrs opts))))
+                         (mapcat #(cluster-lines % opts)))
+        groups (mapv #(line-word-groups % opts) char-groups)]
+    {:opts opts :lines char-groups :groups groups
      :words (mapv (fn [line-groups]
                     (mapv #(merge-word % (:extra-attrs opts)
                                        (:expand-ligatures opts))

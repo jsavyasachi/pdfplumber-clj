@@ -84,6 +84,15 @@
     (testing "text flow preserves content-stream order"
       (is (= "right" (:text (first (pdf/words d {:use-text-flow true}))))))))
 
+(deftest character-direction-uses-text-matrix
+  (pdf/with-pdf [d (fix/reflected-text-pdf)]
+    (is (false? (:upright (first (pdf/chars d)))))
+    (is (= "T h e" (pdf/text d)))))
+
+(deftest character-direction-uses-text-matrix
+  (pdf/with-pdf [d (fix/reflected-text-pdf)]
+    (is (false? (:upright (first (pdf/chars d)))))))
+
 (deftest text-maps-and-layout
   (pdf/with-pdf [d (fix/advanced-text-pdf)]
     (let [extract-text-var (ns-resolve 'pdfplumber.core 'extract-text)
@@ -131,6 +140,13 @@
         (is (= 2 (count (dedupe-var d {:tolerance 0.1}))))
         (is (= 1 (count (dedupe-var d {:tolerance 11.0
                                        :compare-attrs [:fontname :size]}))))))))
+
+(deftest character-deduplication-clusters-adjacent-positions
+  (pdf/with-pdf [d (fix/duplicate-chain-text-pdf)]
+    (let [dedupe-var (ns-resolve 'pdfplumber.core 'dedupe-chars)
+          deduped (dedupe-var d)]
+      (is (= 1 (count deduped)))
+      (is (< (Math/abs (- 72.0 (:x0 (first deduped)))) 0.1)))))
 
 (deftest simple-text-entry-point
   (let [simple-var (ns-resolve 'pdfplumber.core 'extract-text-simple)]

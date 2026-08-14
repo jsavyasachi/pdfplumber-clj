@@ -325,19 +325,17 @@
         (recur (reduce disj remaining component) (conj components component)))
       components)))
 
-(defn- cell-text [words bbox]
-  (->> words
+(defn- cell-text [char-records bbox opts]
+  (->> char-records
        (filter #(g/within? bbox (g/center [(:x0 %) (:top %) (:x1 %) (:bottom %)])))
-       (sort-by (juxt :top :x0))
-       (map :text)
-       (str/join " ")))
+       (text/text-from-chars opts)))
 
-(defn- assemble-rows [cells words tolerance]
+(defn- assemble-rows [cells char-records tolerance opts]
   (->> cells
        (group-by (fn [[_ top]] (Math/round (/ (double top) tolerance))))
        (sort-by key)
        (mapv (fn [[_ row]]
-               (mapv (fn [bbox] {:text (cell-text words bbox) :bbox bbox})
+               (mapv (fn [bbox] {:text (cell-text char-records bbox opts) :bbox bbox})
                      (sort-by first row))))))
 
 (defn- component-bbox [cells]
@@ -387,7 +385,8 @@
                    :bbox bbox
                    :rows (assemble-rows cells words
                                         (max 0.001 (double (or (:snap-y-tolerance opts)
-                                                               (:snap-tolerance opts)))))
+                                                               (:snap-tolerance opts))))
+                                        opts)
                    :cells cells
                    :debug (cond-> {:horizontal-lines (count region-h)
                                    :vertical-lines (count region-v)

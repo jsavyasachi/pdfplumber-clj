@@ -2,6 +2,20 @@
 
 All notable changes to this project are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.4.0] - 2026-08-13
+
+### Fixed
+- Character coordinates are normalized for page rotation and for content
+  rotation. A rotated page gave no text at all, and a rotated table cell gave
+  one line for each character.
+- A character is upright only when the text orientation is positive and the text
+  basis is horizontal. A quarter-turn matrix counted as upright.
+- Duplicate character removal groups characters by the upright flag, the text,
+  and the extra attributes, then clusters `doctop` and `x0` independently within
+  a tolerance of 1 point and keeps the first character in position order.
+- Text extraction follows the line direction and the character direction, and
+  sorts on both coordinates.
+
 ## [1.3.0] - 2026-08-13
 
 ### Fixed
