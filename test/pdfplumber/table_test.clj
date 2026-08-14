@@ -83,6 +83,34 @@
                 :y0 12.0 :upright true}]]
     (is (= "" (cell-text words chars [0.0 0.0 11.0 10.0] {})))))
 
+(deftest table-rows-preserve-missing-column-slots
+  (let [assemble-rows (private-var 'assemble-rows)
+        cells [[0.0 0.0 3.0 1.0]
+               [0.0 4.0 1.0 5.0]
+               [1.0 4.0 2.0 5.0]
+               [2.0 4.0 3.0 5.0]]]
+    (is (= [[{:text "" :bbox [0.0 0.0 3.0 1.0]} nil nil]
+            [{:text "" :bbox [0.0 4.0 1.0 5.0]}
+             {:text "" :bbox [1.0 4.0 2.0 5.0]}
+             {:text "" :bbox [2.0 4.0 3.0 5.0]}]]
+           (assemble-rows cells [] [] 3.0 {})))))
+
+(deftest table-columns-preserve-missing-row-slots
+  (let [table-columns (private-var 'table-columns)
+        merged-cell [0.0 0.0 3.0 1.0]
+        cells [merged-cell
+               [0.0 4.0 1.0 5.0]
+               [1.0 4.0 2.0 5.0]
+               [2.0 4.0 3.0 5.0]]]
+    (is (= [{:bbox [0.0 0.0 3.0 5.0]
+             :cells [merged-cell [0.0 4.0 1.0 5.0]]}
+            {:bbox [1.0 4.0 2.0 5.0]
+             :cells [nil [1.0 4.0 2.0 5.0]]}
+            {:bbox [2.0 4.0 3.0 5.0]
+             :cells [nil [2.0 4.0 3.0 5.0]]}]
+           (table-columns {:bbox [0.0 0.0 3.0 5.0]
+                           :cells cells})))))
+
 (deftest lines-strategy
   (pdf/with-pdf [d (fix/table-pdf)]
     (let [t (pdf/extract-table d {:page 1 :strategy :lines})]

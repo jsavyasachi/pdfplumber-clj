@@ -383,12 +383,17 @@
                 :line-dir-rotated :ttb :char-dir-rotated :ltr))))))
 
 (defn- assemble-rows [cells words char-records tolerance opts]
-  (->> cells
-       (group-by (fn [[_ top]] (Math/round (/ (double top) tolerance))))
-       (sort-by key)
-       (mapv (fn [[_ row]]
-               (mapv (fn [bbox] {:text (cell-text words char-records bbox opts) :bbox bbox})
-                     (sort-by first row))))))
+  (let [x-positions (sort (distinct (map first cells)))]
+    (->> cells
+         (group-by (fn [[_ top]] (Math/round (/ (double top) tolerance))))
+         (sort-by key)
+         (mapv (fn [[_ row]]
+                 (let [cells-by-x (into {} (map (juxt first identity) row))]
+                   (mapv (fn [x]
+                           (when-let [bbox (get cells-by-x x)]
+                             {:text (cell-text words char-records bbox opts)
+                              :bbox bbox}))
+                         x-positions)))))))
 
 (defn- component-bbox [cells]
   [(reduce min (map first cells))
@@ -574,12 +579,17 @@
          (mapv #(row-map headers %) data-rows))))))
 
 (defn- table-columns [table]
-  (let [[_ top _ bottom] (:bbox table)]
-    (->> (:cells table)
-         (group-by (fn [[x0 _ x1 _]] [x0 x1]))
-         (sort-by (comp first key))
-         (mapv (fn [[[x0 x1] cells]]
-                 {:bbox [x0 top x1 bottom] :cells (vec cells)})))))
+  (let [cells (:cells table)
+        x-positions (sort (distinct (map first cells)))
+        top-positions (sort (distinct (map second cells)))]
+    (mapv (fn [x]
+            (let [cells-by-top (into {}
+                                     (map (juxt second identity)
+                                          (filter #(= x (first %)) cells)))
+                  column-cells (mapv #(get cells-by-top %) top-positions)]
+              {:bbox (component-bbox (remove nil? column-cells))
+               :cells column-cells}))
+          x-positions)))
 
 (defn- as-table [table]
   (let [extracted (mapv (fn [row] (mapv :text row)) (:rows table))]
