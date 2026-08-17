@@ -14,13 +14,13 @@ Require the public API namespace:
 deps.edn:
 
 ```clojure
-net.clojars.savya/pdfplumber-clj {:mvn/version "0.1.2"}
+net.clojars.savya/pdfplumber-clj {:mvn/version "1.10.0"}
 ```
 
 Leiningen:
 
 ```clojure
-[net.clojars.savya/pdfplumber-clj "0.1.2"]
+[net.clojars.savya/pdfplumber-clj "1.10.0"]
 ```
 
 Requires JDK 17+.
