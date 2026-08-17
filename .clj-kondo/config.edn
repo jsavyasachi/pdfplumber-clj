@@ -1,0 +1,7 @@
+{:linters
+ {:unresolved-symbol
+  {:level :warning
+   ;; pdf/with-pdf establishes lexical bindings during macro expansion, which
+   ;; clj-kondo cannot infer without a custom macro hook.
+   }}
+}

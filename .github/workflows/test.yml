@@ -9,6 +9,17 @@ permissions:
   contents: read
 
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install clj-kondo
+        uses: DeLaGuardo/setup-clj-kondo@afc83dbbf4e7e32e04649e29dbf30668d30e9e3e
+        with:
+          version: '2022.01.15'
+      - name: Lint
+        run: clj-kondo --lint src test --fail-level error
+
   test:
     runs-on: ubuntu-latest
     strategy:
