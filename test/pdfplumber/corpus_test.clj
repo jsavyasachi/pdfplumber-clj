@@ -275,6 +275,13 @@
           table-count-matches (filter #(= (reduce + 0 (map count (:tables %)))
                                           (reduce + 0 (map count (get-in % [:golden :tables]))))
                                       table-rows)
+          table-count-mismatches (->> table-rows
+                                      (remove #(= (reduce + 0 (map count (:tables %)))
+                                                  (reduce + 0 (map count (get-in % [:golden :tables])))))
+                                      (mapv (fn [r]
+                                              {:file (:name r)
+                                               :ours (reduce + 0 (map count (:tables r)))
+                                               :python (reduce + 0 (map count (get-in r [:golden :tables])))})))
           table-pairs (mapcat (fn [r]
                                 (mapcat (fn [[page-index [clj-page python-page]]]
                                           (map-indexed (fn [table-index [clj-table python-table]]
@@ -299,6 +306,21 @@
                                          :table table
                                          :ours (shape-label (table-shape clj))
                                          :python (shape-label (table-shape python))})))
+          document-table-shape-mismatches
+          (->> table-rows
+               (mapcat (fn [r]
+                         (map-indexed
+                          (fn [table-index [clj-table python-table]]
+                            (when (not= (table-shape clj-table)
+                                        (table-shape python-table))
+                              {:file (:name r)
+                               :table (inc table-index)
+                               :ours (shape-label (table-shape clj-table))
+                               :python (shape-label (table-shape python-table))}))
+                          (map vector (mapcat identity (:tables r))
+                               (mapcat identity (get-in r [:golden :tables]))))))
+               (remove nil?)
+               vec)
           page-cell-recalls (mapcat (fn [r]
                                       (keep-indexed
                                        (fn [page-index [clj-tables python-tables]]
@@ -423,6 +445,12 @@
       (testing "the golden records tables for every comparable PDF"
         (is (empty? (mapv :name missing-tables))
             (str "golden lacks per-page :tables for " (mapv :name missing-tables))))
+      (testing "each PDF has the same table count as Python pdfplumber"
+        (is (empty? table-count-mismatches)
+            (str "table count mismatches: " table-count-mismatches)))
+      (testing "each table has the same row and column shape as Python pdfplumber"
+        (is (empty? document-table-shape-mismatches)
+            (str "table shape mismatches: " document-table-shape-mismatches)))
       (testing "the golden records page objects for every comparable PDF"
         (doseq [object-type object-types]
           (let [missing (get missing-objects object-type)]
