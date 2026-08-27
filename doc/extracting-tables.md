@@ -81,6 +81,11 @@ The implementation does these steps:
 - finds grid cells with four corners at intersections
 - assigns words to cells by word-center containment
 
+When a ruled grid has no outer border, `:lines` infers the missing outer
+vertical edges from horizontal-rule endpoints. If the final row has no bottom
+rule, it infers that rule from the vertical-edge endpoints. These inferred
+edges are used only when the corresponding outer edge is absent.
+
 The returned table includes `:cells` for the grid cell bounding boxes and
 `:debug` counts for `:horizontal-lines`, `:vertical-lines`, and `:cells`.
 

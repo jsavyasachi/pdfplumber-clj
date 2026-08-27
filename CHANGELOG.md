@@ -2,6 +2,13 @@
 
 All notable changes to this project are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+
+- Improve lines-based extraction for borderless grids and tables with an unclosed final row by inferring missing outer rules from detected edge spans.
+- Preserve columns and rows when explicit ruling lines extend beyond the natural span of opposite-orientation detected edges.
+
 ## [1.11.0] - 2026-08-27
 
 ### Added

@@ -250,6 +250,35 @@
       (is (= [["Left" "Right"] ["x" "y"]]
              (row-texts (first tables)))))))
 
+(deftest lines-strategy-closes-borderless-grid
+  (pdf/with-pdf [d (fix/borderless-grid-pdf)]
+    (is (= [["A" "B"] ["C" "D"]]
+           (row-texts (pdf/extract-table d {:page 1 :strategy :lines}))))))
+
+(deftest lines-strategy-closes-unclosed-final-row
+  (pdf/with-pdf [d (fix/unclosed-final-row-table-pdf)]
+    (is (= [["A" "B"] ["C" "D"]]
+           (row-texts (pdf/extract-table d {:page 1 :strategy :lines}))))))
+
+(deftest explicit-lines-widen-opposite-edge-spans
+  (pdf/with-pdf [d (fix/explicit-lines-outside-span-pdf)]
+    (let [tables (pdf/extract-tables
+                  d {:page 1
+                     :vertical-strategy :explicit
+                     :horizontal-strategy :lines
+                     :explicit-vertical-lines [50 150 250]})]
+      (is (= 1 (count tables)))
+      (is (= [["A" "B"] ["C" "D"]]
+             (row-texts (first tables)))))
+    (let [tables (pdf/extract-tables
+                  d {:page 1
+                     :vertical-strategy :lines
+                     :horizontal-strategy :explicit
+                     :explicit-horizontal-lines [180 222 264]})]
+      (is (= 1 (count tables)))
+      (is (= [["A" "B"] ["C" "D"]]
+             (row-texts (first tables)))))))
+
 (deftest singular-table-returns-first-detected-table
   (pdf/with-pdf [d (fix/two-tables-pdf)]
     (is (= [["A" "B"] ["1" "2"]]

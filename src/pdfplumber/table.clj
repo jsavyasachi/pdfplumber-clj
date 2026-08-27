@@ -210,6 +210,57 @@
     {:h (filterv #(>= (- (double (:x1 %)) (:x0 %)) edge-min-length) h)
      :v (filterv #(>= (- (double (:bottom %)) (:top %)) edge-min-length) v)}))
 
+(defn- close-open-edges
+  "Add only missing outer edges implied by the opposite edge family."
+  [{:keys [h v]} x-tolerance y-tolerance]
+  (let [h (vec h)
+        v (vec v)
+        h-x0 (when (seq h) (reduce min (map :x0 h)))
+        h-x1 (when (seq h) (reduce max (map :x1 h)))
+        h-y0 (when (seq h) (reduce min (map :y h)))
+        h-y1 (when (seq h) (reduce max (map :y h)))
+        v-y0 (when (seq v) (reduce min (map :top v)))
+        v-y1 (when (seq v) (reduce max (map :bottom v)))
+        has-v? (fn [x] (and (seq v)
+                            (some #(and (<= (Math/abs (- (double (:x %)) x)) x-tolerance)
+                                        (<= (:top %) (+ v-y0 y-tolerance))
+                                        (>= (:bottom %) (- v-y1 y-tolerance))) v)))
+        v (cond-> v
+            (and h-x0 h-y0 h-y1 (not (has-v? h-x0)))
+            (conj {:x h-x0 :top h-y0 :bottom h-y1 :synthetic true})
+            (and h-x1 h-y0 h-y1 (not (has-v? h-x1)))
+            (conj {:x h-x1 :top h-y0 :bottom h-y1 :synthetic true}))
+        v-x0 (when (seq v) (reduce min (map :x v)))
+        v-x1 (when (seq v) (reduce max (map :x v)))
+        v-y0 (when (seq v) (reduce min (map :top v)))
+        v-y1 (when (seq v) (reduce max (map :bottom v)))
+        h-coherent? (and (seq v)
+                         (some #(and (<= (:x0 %) (+ v-x0 x-tolerance))
+                                      (>= (:x1 %) (- v-x1 x-tolerance))) h))
+        has-h? (fn [y] (and (seq v)
+                            (some #(and (<= (Math/abs (- (double (:y %)) y)) y-tolerance)
+                                        (<= (:x0 %) (+ v-x0 x-tolerance))
+                                        (>= (:x1 %) (- v-x1 x-tolerance))) h)))
+        h (cond-> h
+            (and h-coherent? v-x0 v-x1 v-y0 (not (has-h? v-y0)))
+            (conj {:y v-y0 :x0 v-x0 :x1 v-x1 :synthetic true})
+            (and h-coherent? v-x0 v-x1 v-y1 (not (has-h? v-y1)))
+            (conj {:y v-y1 :x0 v-x0 :x1 v-x1 :synthetic true}))]
+    {:h h :v v}))
+
+(defn- widen-to-explicit [{:keys [h v]} explicit-v explicit-h]
+  (let [h (if (seq explicit-v)
+            (let [x0 (reduce min (map :x explicit-v))
+                  x1 (reduce max (map :x explicit-v))]
+              (map #(assoc % :x0 (min (:x0 %) x0) :x1 (max (:x1 %) x1)) h))
+            h)
+        v (if (seq explicit-h)
+            (let [top (reduce min (map :y explicit-h))
+                  bottom (reduce max (map :y explicit-h))]
+              (map #(assoc % :top (min (:top %) top) :bottom (max (:bottom %) bottom)) v))
+            v)]
+    {:h h :v v}))
+
 (defn- strategy-edges [doc words objs opts]
   (let [bbox (page-bbox doc opts)
         page (.getPage doc (dec (int (or (:page opts) 1))))
@@ -230,12 +281,12 @@
                      :lines-strict (:h strict-edges)
                      :text (text-horizontal-edges words opts)
                      :explicit [])
-        vertical (concat vertical-base
-                         (map #(explicit-v-edge % bbox)
-                              (:explicit-vertical-lines opts)))
-        horizontal (concat horizontal-base
-                           (map #(explicit-h-edge % bbox)
-                                (:explicit-horizontal-lines opts)))
+        explicit-v (map #(explicit-v-edge % bbox) (:explicit-vertical-lines opts))
+        explicit-h (map #(explicit-h-edge % bbox) (:explicit-horizontal-lines opts))
+        {:keys [h v]} (widen-to-explicit {:h horizontal-base :v vertical-base}
+                                         explicit-v explicit-h)
+        vertical (concat v explicit-v)
+        horizontal (concat h explicit-h)
         vertical (if (and (= :text (:vertical-strategy opts)) (seq horizontal))
                    (let [top (reduce min (map :y horizontal))
                          bottom (reduce max (map :y horizontal))]
@@ -246,7 +297,17 @@
                            x1 (reduce max (map :x vertical))]
                        (map #(assoc % :x0 x0 :x1 x1) horizontal))
                      horizontal)]
-    (normalize-edges {:h horizontal :v vertical} opts)))
+    (let [edges (normalize-edges {:h horizontal :v vertical} opts)]
+      (if (and (= :lines (:vertical-strategy opts))
+               (= :lines (:horizontal-strategy opts))
+               (empty? explicit-v)
+               (empty? explicit-h))
+        (close-open-edges edges
+                          (double (or (:intersection-x-tolerance opts)
+                                      (:intersection-tolerance opts)))
+                          (double (or (:intersection-y-tolerance opts)
+                                      (:intersection-tolerance opts))))
+        edges))))
 
 (defn- cell-bounded? [{:keys [h v]} x0 top x1 bottom x-tol y-tol]
   (and (some #(and (<= (Math/abs (- (double (:y %)) top)) y-tol)
