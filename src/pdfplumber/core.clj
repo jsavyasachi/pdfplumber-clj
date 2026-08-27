@@ -377,6 +377,18 @@
   [doc n]
   (structure/page-structure-tree doc n))
 
+(defn character-associations
+  "Characters with direct tagged-PDF elements and `:confidence` (`:exact` or
+   `:unmapped`). Untagged PDFs return `[]`."
+  ([doc] (character-associations doc {}))
+  ([doc opts] (structure/character-associations doc opts)))
+
+(defn text-spans
+  "Text spans with direct tagged-PDF elements and explicit confidence. Untagged
+   PDFs return `[]`."
+  ([doc] (text-spans doc {}))
+  ([doc opts] (structure/text-spans doc opts)))
+
 (defmacro with-pdf
   "Open `source`, bind the document handle to `binding`, evaluate `body`, and
    always close the document on exit (including on exception).

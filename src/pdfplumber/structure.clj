@@ -1,5 +1,6 @@
 (ns pdfplumber.structure
   "Extract tagged-PDF logical structures."
+  (:require [pdfplumber.text :as text])
   (:import [org.apache.pdfbox.cos COSArray COSBoolean COSDictionary COSInteger
             COSName COSNumber COSObject COSString]
            [org.apache.pdfbox.pdmodel PDDocument PDPage]
@@ -111,6 +112,17 @@
   [^PDDocument doc]
   (mapv public-element (or (raw-tree doc) [])))
 
+(defn- element-elements [path element]
+  (cons [path element]
+        (mapcat (fn [[child-index child]]
+                  (element-elements (conj path child-index) child))
+                (map-indexed vector (:children element)))))
+
+(defn- tree-elements [tree]
+  (mapcat (fn [[index element]]
+            (element-elements [index] element))
+          (map-indexed vector tree)))
+
 (defn- prune-to-page [page-number element]
   (let [mcids (filterv #(= page-number (first %)) (:mcids element))
         children (into [] (keep #(prune-to-page page-number %)) (:children element))]
@@ -123,3 +135,43 @@
   (->> (or (raw-tree doc) [])
        (keep #(prune-to-page n %))
        (mapv public-element)))
+
+(defn character-associations
+  "Associate extracted characters with direct structure-tree elements."
+  ([^PDDocument doc] (character-associations doc {}))
+  ([^PDDocument doc opts]
+   (if-let [tree (raw-tree doc)]
+     (let [index (into {}
+                       (mapcat (fn [[path element]]
+                                 (map (fn [[page mcid]]
+                                        [[page mcid]
+                                         {:path path
+                                          :type (:type element)
+                                          :mcid mcid}])
+                                      (:mcids element)))
+                               (tree-elements tree)))
+           ;; MCID callbacks surround processTextPosition, but PDFTextStripper's
+           ;; batched writeString callback runs after the marked-content scope
+           ;; has ended. Text-flow mode therefore is required for associations.
+           chars (text/chars doc (assoc opts :include-mcid? true
+                                        :use-text-flow true))]
+       (mapv (fn [char]
+               (let [element (get index [(:page-number char) (:mcid char)])]
+                 {:char (dissoc char :mcid)
+                  :element element
+                  :confidence (if element :exact :unmapped)}))
+             chars))
+     [])))
+
+(defn text-spans
+  "Extract text spans with direct structure-tree associations."
+  ([^PDDocument doc] (text-spans doc {}))
+  ([^PDDocument doc opts]
+   (->> (character-associations doc opts)
+        (partition-by #(select-keys % [:element :confidence]))
+        (mapv (fn [associations]
+                (let [first-association (first associations)]
+                  {:text (apply str (map #(get-in % [:char :text]) associations))
+                   :chars (mapv :char associations)
+                   :element (:element first-association)
+                   :confidence (:confidence first-association)}))))))
