@@ -186,10 +186,14 @@
         width (double (.getWidth box))
         height (page-height doc p)
         rotation (mod (.getRotation page) 360)
-        ^PDFTextStripper stripper (collecting-stripper acc p width height rotation
+        ^PDFTextStripper stripper (if include-mcid?
+                                  (collecting-stripper acc p width height rotation
                                                        (doctop-offset doc p)
                                                        use-text-flow
-                                                       mcid-state)]
+                                                       mcid-state)
+                                  (collecting-stripper acc p width height rotation
+                                                       (doctop-offset doc p)
+                                                       use-text-flow))]
     (.setSortByPosition stripper false)
     (.setSuppressDuplicateOverlappingText stripper false)
     (.setStartPage stripper (int p))

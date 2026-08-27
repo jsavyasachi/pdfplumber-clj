@@ -8,6 +8,10 @@ All notable changes to this project are documented here. Format follows [Keep a 
 - Character associations and text spans for tagged-PDF structure elements,
   with explicit `:exact` and `:unmapped` confidence.
 
+### Fixed
+- Text extraction no longer crashes on PDFs containing marked-content
+  sequences when MCID capture is not requested.
+
 ## [1.11.0] - 2026-08-27
 
 ### Added

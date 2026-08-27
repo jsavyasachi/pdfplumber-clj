@@ -41,6 +41,14 @@
     (is (= [] (structure/character-associations doc)))
     (is (= [] (structure/text-spans doc)))))
 
+(deftest default-text-extraction-survives-structure-fixtures
+  (doseq [pdf-bytes [(fix/simple-text-pdf) (fix/tagged-text-pdf)]]
+    (pdf/with-pdf [doc pdf-bytes]
+      (is (vector? (try
+                     (pdf/chars doc)
+                     (catch Throwable _
+                       nil)))))))
+
 (deftest tagged-document-structure
   (with-open [doc (tagged-doc)]
     (let [tree (structure/structure-tree doc)
