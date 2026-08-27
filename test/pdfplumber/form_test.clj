@@ -3,12 +3,13 @@
             [pdfplumber.core :as pdf]
             [pdfplumber.fixtures :as fix]
             [pdfplumber.form :as form])
-  (:import [org.apache.pdfbox.cos COSName]
+  (:import [org.apache.pdfbox.cos COSDictionary COSName COSStream]
            [org.apache.pdfbox.pdmodel PDDocument PDPage]
            [org.apache.pdfbox.pdmodel.common PDRectangle]
            [org.apache.pdfbox.pdmodel.interactive.annotation PDAnnotationWidget]
            [org.apache.pdfbox.pdmodel.interactive.form PDAcroForm PDCheckBox
-            PDComboBox PDField PDNonTerminalField PDTextField]))
+            PDComboBox PDField PDNonTerminalField PDTextField]
+           [java.io ByteArrayInputStream ByteArrayOutputStream]))
 
 (set! *warn-on-reflection* true)
 
@@ -47,7 +48,13 @@
 
     (let [widgets [(place-widget! text-field page 72 650 160 20)
                    (place-widget! checkbox page 72 610 20 20)
-                   (place-widget! combo page 72 570 160 20)]]
+                   (place-widget! combo page 72 570 160 20)]
+          appearance-n (doto (COSDictionary.)
+                         (.setItem COSName/OFF (COSStream.))
+                         (.setItem COSName/YES (COSStream.)))
+          appearance (doto (COSDictionary.)
+                       (.setItem COSName/N appearance-n))]
+      (.setItem (.getCOSObject ^PDAnnotationWidget (second widgets)) COSName/AP appearance)
       (.setAnnotations page widgets))
     (.setChildren parent [text-field checkbox combo])
     (.setFields form [parent])
@@ -94,6 +101,40 @@
              (form/field-values doc))))))
 
 (deftest no-acroform-is-empty
-  (pdf/with-pdf [doc (fix/simple-text-pdf)]
+  (with-open [^PDDocument doc (pdf/open-pdf (fix/simple-text-pdf))]
     (is (= [] (form/form-fields doc)))
     (is (= {} (form/field-values doc)))))
+
+(deftest sets-form-values-and-refreshes-appearances
+  (with-open [doc (form-doc)]
+    (.setReadOnly ^PDCheckBox (.getField (.getAcroForm (.getDocumentCatalog doc)) "profile.active") false)
+    (is (identical? doc (form/set-values doc {"profile.name" "Grace"
+                                               "profile.active" false
+                                               "profile.country" "us"})))
+    (is (= {"profile.name" "Grace"
+            "profile.active" "Off"
+            "profile.country" "[us]"}
+           (form/field-values doc)))
+    (is (identical? doc (form/refresh-appearances doc)))))
+
+(deftest flatten-removes-interactive-fields
+  (with-open [doc (form-doc)]
+    (.setReadOnly ^PDCheckBox (.getField (.getAcroForm (.getDocumentCatalog doc)) "profile.active") false)
+    (form/set-values doc {"profile.name" "Flattened" "profile.active" true})
+    (is (identical? doc (form/flatten doc)))
+    (is (= [] (form/form-fields doc)))))
+
+(deftest fdf-export-import-round-trip
+  (with-open [doc (form-doc)]
+    (.setReadOnly ^PDCheckBox (.getField (.getAcroForm (.getDocumentCatalog doc)) "profile.active") false)
+    (form/set-values doc {"profile.name" "FDF round trip" "profile.active" true})
+    (let [output (ByteArrayOutputStream.)]
+      (is (= output (form/export-fdf doc output)))
+      (with-open [copy (form-doc)]
+        (.setReadOnly ^PDCheckBox (.getField (.getAcroForm (.getDocumentCatalog copy)) "profile.active") false)
+        (is (identical? copy
+                       (form/import-fdf copy (ByteArrayInputStream. (.toByteArray output)))))
+        (is (= {"profile.name" "FDF round trip"
+                "profile.active" "Yes"
+                "profile.country" "[ca]"}
+               (form/field-values copy)))))))
