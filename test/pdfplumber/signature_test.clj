@@ -4,8 +4,19 @@
             [pdfplumber.fixtures :as fix]
             [pdfplumber.signature :as signature])
   (:import [java.io ByteArrayOutputStream]
+           [java.math BigInteger]
+           [java.security KeyPairGenerator]
            [java.time Instant]
-           [java.util Arrays Calendar GregorianCalendar TimeZone]
+           [java.util Arrays Calendar Date GregorianCalendar TimeZone]
+           [org.bouncycastle.asn1.x500 X500Name]
+           [org.bouncycastle.cert X509CertificateHolder]
+           [org.bouncycastle.cert.jcajce JcaX509CertificateConverter
+            JcaX509v3CertificateBuilder]
+           [org.bouncycastle.cms CMSSignedDataGenerator CMSProcessableByteArray]
+           [org.bouncycastle.cms.jcajce JcaSignerInfoGeneratorBuilder]
+           [org.bouncycastle.jce.provider BouncyCastleProvider]
+           [org.bouncycastle.operator.jcajce JcaContentSignerBuilder
+            JcaDigestCalculatorProviderBuilder]
            [org.apache.pdfbox.pdmodel PDDocument PDPage]
            [org.apache.pdfbox.pdmodel.interactive.digitalsignature PDSignature]
            [org.apache.pdfbox.pdmodel.interactive.form PDAcroForm PDSignatureField]))
@@ -49,6 +60,46 @@
 (defn- fake-signed-pdf ^bytes []
   (fake-signed-pdf-with-length 2048))
 
+(defn- cms-signature [^bytes content]
+  (let [provider (BouncyCastleProvider.)
+        key-generator (doto (KeyPairGenerator/getInstance "RSA" provider)
+                        (.initialize 2048))
+        key-pair (.generateKeyPair key-generator)
+        name (X500Name. "CN=Test Signer")
+        now (Date.)
+        builder (JcaX509v3CertificateBuilder. name BigInteger/ONE now
+                                              (Date. (+ (.getTime now) 60000))
+                                              name (.getPublic key-pair))
+        signer (.. (JcaContentSignerBuilder. "SHA256withRSA")
+                   (setProvider provider)
+                   (build (.getPrivate key-pair)))
+        certificate (.. (JcaX509CertificateConverter.)
+                        (setProvider provider)
+                        (getCertificate (.build builder signer)))
+        digest-provider (.. (JcaDigestCalculatorProviderBuilder.)
+                            (setProvider provider)
+                            (build))
+        signer-info (.. (JcaSignerInfoGeneratorBuilder. digest-provider)
+                        (build signer certificate))
+        generator (doto (CMSSignedDataGenerator.)
+                    (.addSignerInfoGenerator signer-info)
+                    (.addCertificate (X509CertificateHolder. (.getEncoded certificate))))]
+    (.getEncoded (.generate generator (CMSProcessableByteArray. content) false))))
+
+(deftest valid-cms-signature-test
+  (let [content (.getBytes "signed bytes" "UTF-8")
+        signature-value (cms-signature content)
+        sig (doto (PDSignature.)
+              (.setByteRange (int-array [0 (alength content) (alength content) 0]))
+              (.setContents signature-value))
+        verify-cms (ns-resolve 'pdfplumber.signature 'verify-cms)
+        result (verify-cms sig content)]
+    (is (= "CN=Test Signer" (:signer-identity result)))
+    (is (true? (:digest-valid? result)))
+    (is (= :untrusted (:trust-status result)))
+    (is (false? (:revocation-checked? result)))
+    (is (= 1 (count (:certificate-chain result))))))
+
 (deftest unsigned-document-test
   (with-open [doc (document/open-pdf (fix/simple-text-pdf))]
     (is (= [] (signature/signatures doc)))
@@ -70,4 +121,9 @@
           (is (= [0 64 128 (- (alength pdf) 128)]
                  (:byte-range result)))
           (is (true? (:covers-whole-document? result))))
+        (testing "verification is explicit for an invalid signature"
+          (is (false? (:digest-valid? result)))
+          (is (= :invalid (:trust-status result)))
+          (is (contains? result :certificate-chain))
+          (is (contains? result :signer-identity)))
         (is (true? (signature/signed? doc)))))))

@@ -228,14 +228,20 @@ decoded `:bytes`.
 
 ## Signatures
 
-`signatures` returns signature metadata and a `:covers-whole-document?`
-integrity signal. `signed?` reports the presence of a signature dictionary.
-These APIs do not validate cryptographic signatures, certificates, or trust.
+`signatures` returns signature metadata, cryptographic CMS verification, the
+certificate chain, signer identity, and a prominent `:covers-whole-document?`
+byte-range result. `:digest-valid?` is separate from coverage: a valid digest
+can still cover only an earlier incremental revision. `:trust-status` is a
+keyword (`:untrusted` for a valid signature without configured root/revocation
+checking, or `:invalid` when CMS verification fails); `:revocation-checked?`
+is always false because this library does not perform revocation checks.
 
 ```clojure
 (pdf/signatures doc)
 ;; => [{:name "Ada Lovelace", :byte-range [0 1024 2048 512],
 ;;      :covers-whole-document? true}]
+
+(pdf/verify-signatures doc) ; explicit alias for the verified result
 
 (pdf/signed? doc)
 ;; => true
@@ -290,7 +296,8 @@ and layout ML.
 
 Two caveats:
 
-- Signature APIs do not perform cryptographic, certificate, or trust validation.
+- Signature APIs verify embedded CMS signatures but do not anchor certificates
+  to trusted roots or perform revocation checking.
 - The table `:text` strategy is heuristic for digitally generated PDFs.
 
 ## License
