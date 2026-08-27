@@ -6,7 +6,7 @@ All notable changes to this project are documented here. Format follows [Keep a 
 
 ### Fixed
 
-- Improve lines-based extraction for borderless grids and tables with an unclosed final row by inferring missing outer rules from detected edge spans.
+- Improve lines-based extraction for borderless grids and tables with an unclosed final row by inferring missing outer rules only for coherent, word-populated grids.
 - Preserve columns and rows when explicit ruling lines extend beyond the natural span of opposite-orientation detected edges.
 
 ## [1.11.0] - 2026-08-27

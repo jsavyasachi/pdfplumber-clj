@@ -255,6 +255,10 @@
     (is (= [["A" "B"] ["C" "D"]]
            (row-texts (pdf/extract-table d {:page 1 :strategy :lines}))))))
 
+(deftest lines-strategy-does-not-infer-table-from-rules-alone
+  (pdf/with-pdf [d (fix/open-grid-without-text-pdf)]
+    (is (= [] (pdf/extract-tables d {:page 1 :strategy :lines})))))
+
 (deftest lines-strategy-closes-unclosed-final-row
   (pdf/with-pdf [d (fix/unclosed-final-row-table-pdf)]
     (is (= [["A" "B"] ["C" "D"]]

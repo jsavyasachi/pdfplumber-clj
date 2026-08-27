@@ -757,6 +757,22 @@
           (.endText cs))))
     (->bytes doc)))
 
+(defn open-grid-without-text-pdf
+  "Single page with unrelated horizontal rules and one vertical rule."
+  ^bytes []
+  (with-open [doc (PDDocument.)]
+    (let [page (PDPage. PDRectangle/LETTER)]
+      (.addPage doc page)
+      (with-open [cs (PDPageContentStream. doc page)]
+        (doseq [y [600 570 540]]
+          (.moveTo cs (float 100) (float y))
+          (.lineTo cs (float 300) (float y))
+          (.stroke cs))
+        (.moveTo cs (float 200) (float 540))
+        (.lineTo cs (float 200) (float 600))
+        (.stroke cs)))
+    (->bytes doc)))
+
 (defn unclosed-final-row-table-pdf
   "Single page with a 2x2 grid whose final horizontal rule is absent."
   ^bytes []

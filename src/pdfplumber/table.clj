@@ -261,6 +261,38 @@
             v)]
     {:h h :v v}))
 
+(declare grid-cells)
+
+(defn- word-in-cell? [[cell-x0 cell-top cell-x1 cell-bottom]
+                     {:keys [x0 top x1 bottom]}]
+  (let [[center-x center-y] (g/center [x0 top x1 bottom])]
+    (and (<= cell-x0 center-x) (< center-x cell-x1)
+         (<= cell-top center-y) (< center-y cell-bottom))))
+
+(defn- coherent-edge-family? [edges start end tolerance]
+  (when (seq edges)
+    (let [min-start (reduce min (map start edges))
+          max-end (reduce max (map end edges))]
+      (every? #(and (<= (- (double (start %)) min-start) tolerance)
+                    (<= (- max-end (double (end %))) tolerance))
+              edges))))
+
+(defn- recovers-uncovered-words? [before after words x-tolerance y-tolerance]
+  (let [before-cells (grid-cells before x-tolerance y-tolerance)
+        after-cells (grid-cells after x-tolerance y-tolerance)
+        added-cells (remove (set before-cells) after-cells)]
+    (and (coherent-edge-family? (:h before) :x0 :x1 x-tolerance)
+         (coherent-edge-family? (:v before) :top :bottom y-tolerance)
+         (seq added-cells)
+         (every? (fn [cell]
+                   (some (fn [word]
+                           (and (word-in-cell? cell word)
+                                (not-any? (fn [prior]
+                                            (word-in-cell? prior word))
+                                          before-cells)))
+                         words))
+                 added-cells))))
+
 (defn- strategy-edges [doc words objs opts]
   (let [bbox (page-bbox doc opts)
         page (.getPage doc (dec (int (or (:page opts) 1))))
@@ -297,16 +329,20 @@
                            x1 (reduce max (map :x vertical))]
                        (map #(assoc % :x0 x0 :x1 x1) horizontal))
                      horizontal)]
-    (let [edges (normalize-edges {:h horizontal :v vertical} opts)]
+    (let [edges (normalize-edges {:h horizontal :v vertical} opts)
+          x-tolerance (double (or (:intersection-x-tolerance opts)
+                                  (:intersection-tolerance opts)))
+          y-tolerance (double (or (:intersection-y-tolerance opts)
+                                  (:intersection-tolerance opts)))]
       (if (and (= :lines (:vertical-strategy opts))
                (= :lines (:horizontal-strategy opts))
                (empty? explicit-v)
                (empty? explicit-h))
-        (close-open-edges edges
-                          (double (or (:intersection-x-tolerance opts)
-                                      (:intersection-tolerance opts)))
-                          (double (or (:intersection-y-tolerance opts)
-                                      (:intersection-tolerance opts))))
+        (let [closed (close-open-edges edges x-tolerance y-tolerance)]
+          (if (recovers-uncovered-words? edges closed words
+                                         x-tolerance y-tolerance)
+            closed
+            edges))
         edges))))
 
 (defn- cell-bounded? [{:keys [h v]} x0 top x1 bottom x-tol y-tol]
