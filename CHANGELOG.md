@@ -2,6 +2,13 @@
 
 All notable changes to this project are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+- Signature inspection now verifies embedded CMS signatures, reports signer
+  identity and certificates, and separates digest validity, byte-range coverage,
+  and conservative trust status. Bouncy Castle is used for CMS parsing and
+  verification; root trust and revocation are not checked.
+
 ## [1.11.0] - 2026-08-27
 
 ### Added

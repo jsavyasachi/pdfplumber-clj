@@ -94,10 +94,15 @@
   (permissions/permissions doc))
 
 (defn signatures
-  "Digital-signature metadata and document-coverage signals. See
+  "Digital-signature metadata, verification, and document-coverage signals. See
    `pdfplumber.signature/signatures`."
   [doc]
   (signature/signatures doc))
+
+(defn verify-signatures
+  "Return signature metadata, CMS verification, coverage, and trust status."
+  [doc]
+  (signature/verify-signatures doc))
 
 (defn signed?
   "True when the document contains a signature dictionary. See
