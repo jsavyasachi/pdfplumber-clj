@@ -778,6 +778,96 @@
           (.endText cs)))
       (->bytes doc))))
 
+(defn borderless-grid-pdf
+  "Single page with a 2x2 grid whose outer vertical borders are absent."
+  ^bytes []
+  (with-open [doc (PDDocument.)]
+    (let [page (PDPage. PDRectangle/LETTER)]
+      (.addPage doc page)
+      (with-open [cs (PDPageContentStream. doc page)]
+        (.setLineWidth cs (float 1.0))
+        (doseq [y [600 570 540]]
+          (.moveTo cs (float 100) (float y))
+          (.lineTo cs (float 300) (float y))
+          (.stroke cs))
+        (doseq [x [200]]
+          (.moveTo cs (float x) (float 540))
+          (.lineTo cs (float x) (float 600))
+          (.stroke cs))
+        (doseq [[s x y] [["A" 110 578] ["B" 210 578]
+                         ["C" 110 548] ["D" 210 548]]]
+          (.beginText cs)
+          (.setFont cs (helvetica) (float 10))
+          (.newLineAtOffset cs (float x) (float y))
+          (.showText cs ^String s)
+          (.endText cs))))
+    (->bytes doc)))
+
+(defn open-grid-without-text-pdf
+  "Single page with unrelated horizontal rules and one vertical rule."
+  ^bytes []
+  (with-open [doc (PDDocument.)]
+    (let [page (PDPage. PDRectangle/LETTER)]
+      (.addPage doc page)
+      (with-open [cs (PDPageContentStream. doc page)]
+        (doseq [y [600 570 540]]
+          (.moveTo cs (float 100) (float y))
+          (.lineTo cs (float 300) (float y))
+          (.stroke cs))
+        (.moveTo cs (float 200) (float 540))
+        (.lineTo cs (float 200) (float 600))
+        (.stroke cs)))
+    (->bytes doc)))
+
+(defn unclosed-final-row-table-pdf
+  "Single page with a 2x2 grid whose final horizontal rule is absent."
+  ^bytes []
+  (with-open [doc (PDDocument.)]
+    (let [page (PDPage. PDRectangle/LETTER)]
+      (.addPage doc page)
+      (with-open [cs (PDPageContentStream. doc page)]
+        (.setLineWidth cs (float 1.0))
+        (doseq [y [600 570]]
+          (.moveTo cs (float 100) (float y))
+          (.lineTo cs (float 300) (float y))
+          (.stroke cs))
+        (doseq [x [100 200 300]]
+          (.moveTo cs (float x) (float 520))
+          (.lineTo cs (float x) (float 600))
+          (.stroke cs))
+        (doseq [[s x y] [["A" 110 578] ["B" 210 578]
+                         ["C" 110 548] ["D" 210 548]]]
+          (.beginText cs)
+          (.setFont cs (helvetica) (float 10))
+          (.newLineAtOffset cs (float x) (float y))
+          (.showText cs ^String s)
+          (.endText cs))))
+    (->bytes doc)))
+
+(defn explicit-lines-outside-span-pdf
+  "Single page with text-derived horizontal rules narrower than explicit columns."
+  ^bytes []
+  (with-open [doc (PDDocument.)]
+    (let [page (PDPage. PDRectangle/LETTER)]
+      (.addPage doc page)
+      (with-open [cs (PDPageContentStream. doc page)]
+        (doseq [y [600 570 540]]
+          (.moveTo cs (float 80) (float y))
+          (.lineTo cs (float 220) (float y))
+          (.stroke cs))
+        (doseq [x [100 200 300]]
+          (.moveTo cs (float x) (float 540))
+          (.lineTo cs (float x) (float 600))
+          (.stroke cs))
+        (doseq [[s x y] [["A" 110 578] ["B" 210 578]
+                         ["C" 110 548] ["D" 210 548]]]
+          (.beginText cs)
+          (.setFont cs (helvetica) (float 10))
+          (.newLineAtOffset cs (float x) (float y))
+          (.showText cs ^String s)
+          (.endText cs))))
+    (->bytes doc)))
+
 (defn image-pdf
   "Single page with a 2x3 RGB raster drawn at x=100, y=600, w=40, h=30."
   ^bytes []

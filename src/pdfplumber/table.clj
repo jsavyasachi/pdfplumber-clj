@@ -68,31 +68,31 @@
   (let [lines (filter #(= :line (:type %)) objs)
         rects (if strict? [] (filter #(= :rect (:type %)) objs))
         curves (if strict? [] (filter #(= :curve (:type %)) objs))
-        {curve-h :h curve-v :v} (curve-edges curves)]
-    (let [edges {:h (concat
-          (for [line lines :when (= :horizontal (:orientation line))]
-            {:y (:top line) :x0 (:x0 line) :x1 (:x1 line)})
-          (mapcat (fn [rect]
-                     [{:y (:top rect) :x0 (:x0 rect) :x1 (:x1 rect)}
-                     {:y (:bottom rect) :x0 (:x0 rect) :x1 (:x1 rect)}])
-                  rects)
-          curve-h)
-      :v (concat
-          (for [line lines :when (= :vertical (:orientation line))]
-            {:x (:x0 line) :top (:top line) :bottom (:bottom line)})
-          (mapcat (fn [rect]
-                     [{:x (:x0 rect) :top (:top rect) :bottom (:bottom rect)}
-                     {:x (:x1 rect) :top (:top rect) :bottom (:bottom rect)}])
-                  rects)
-          curve-v)}]
-      {:h (map #(-> %
-                   (update :x0 - page-x0)
-                   (update :x1 - page-x0)
-                   (update :y + page-y0)) (:h edges))
-       :v (map #(-> %
-                   (update :x - page-x0)
-                   (update :top + page-y0)
-                   (update :bottom + page-y0)) (:v edges))})))
+        {curve-h :h curve-v :v} (curve-edges curves)
+        edges {:h (concat
+                   (for [line lines :when (= :horizontal (:orientation line))]
+                     {:y (:top line) :x0 (:x0 line) :x1 (:x1 line)})
+                   (mapcat (fn [rect]
+                             [{:y (:top rect) :x0 (:x0 rect) :x1 (:x1 rect)}
+                              {:y (:bottom rect) :x0 (:x0 rect) :x1 (:x1 rect)}])
+                           rects)
+                   curve-h)
+               :v (concat
+                   (for [line lines :when (= :vertical (:orientation line))]
+                     {:x (:x0 line) :top (:top line) :bottom (:bottom line)})
+                   (mapcat (fn [rect]
+                             [{:x (:x0 rect) :top (:top rect) :bottom (:bottom rect)}
+                              {:x (:x1 rect) :top (:top rect) :bottom (:bottom rect)}])
+                           rects)
+                   curve-v)}]
+    {:h (map #(-> %
+                  (update :x0 - page-x0)
+                  (update :x1 - page-x0)
+                  (update :y + page-y0)) (:h edges))
+     :v (map #(-> %
+                  (update :x - page-x0)
+                  (update :top + page-y0)
+                  (update :bottom + page-y0)) (:v edges))}))
 
 (defn- rotate-words [words rotation page-height]
   (if (= rotation 90)
@@ -210,6 +210,89 @@
     {:h (filterv #(>= (- (double (:x1 %)) (:x0 %)) edge-min-length) h)
      :v (filterv #(>= (- (double (:bottom %)) (:top %)) edge-min-length) v)}))
 
+(defn- close-open-edges
+  "Add only missing outer edges implied by the opposite edge family."
+  [{:keys [h v]} x-tolerance y-tolerance]
+  (let [h (vec h)
+        v (vec v)
+        h-x0 (when (seq h) (reduce min (map :x0 h)))
+        h-x1 (when (seq h) (reduce max (map :x1 h)))
+        h-y0 (when (seq h) (reduce min (map :y h)))
+        h-y1 (when (seq h) (reduce max (map :y h)))
+        v-y0 (when (seq v) (reduce min (map :top v)))
+        v-y1 (when (seq v) (reduce max (map :bottom v)))
+        has-v? (fn [x] (and (seq v)
+                            (some #(and (<= (Math/abs (- (double (:x %)) x)) x-tolerance)
+                                        (<= (:top %) (+ v-y0 y-tolerance))
+                                        (>= (:bottom %) (- v-y1 y-tolerance))) v)))
+        v (cond-> v
+            (and h-x0 h-y0 h-y1 (not (has-v? h-x0)))
+            (conj {:x h-x0 :top h-y0 :bottom h-y1 :synthetic true})
+            (and h-x1 h-y0 h-y1 (not (has-v? h-x1)))
+            (conj {:x h-x1 :top h-y0 :bottom h-y1 :synthetic true}))
+        v-x0 (when (seq v) (reduce min (map :x v)))
+        v-x1 (when (seq v) (reduce max (map :x v)))
+        v-y0 (when (seq v) (reduce min (map :top v)))
+        v-y1 (when (seq v) (reduce max (map :bottom v)))
+        h-coherent? (and (seq v)
+                         (some #(and (<= (:x0 %) (+ v-x0 x-tolerance))
+                                      (>= (:x1 %) (- v-x1 x-tolerance))) h))
+        has-h? (fn [y] (and (seq v)
+                            (some #(and (<= (Math/abs (- (double (:y %)) y)) y-tolerance)
+                                        (<= (:x0 %) (+ v-x0 x-tolerance))
+                                        (>= (:x1 %) (- v-x1 x-tolerance))) h)))
+        h (cond-> h
+            (and h-coherent? v-x0 v-x1 v-y0 (not (has-h? v-y0)))
+            (conj {:y v-y0 :x0 v-x0 :x1 v-x1 :synthetic true})
+            (and h-coherent? v-x0 v-x1 v-y1 (not (has-h? v-y1)))
+            (conj {:y v-y1 :x0 v-x0 :x1 v-x1 :synthetic true}))]
+    {:h h :v v}))
+
+(defn- widen-to-explicit [{:keys [h v]} explicit-v explicit-h]
+  (let [h (if (seq explicit-v)
+            (let [x0 (reduce min (map :x explicit-v))
+                  x1 (reduce max (map :x explicit-v))]
+              (map #(assoc % :x0 (min (:x0 %) x0) :x1 (max (:x1 %) x1)) h))
+            h)
+        v (if (seq explicit-h)
+            (let [top (reduce min (map :y explicit-h))
+                  bottom (reduce max (map :y explicit-h))]
+              (map #(assoc % :top (min (:top %) top) :bottom (max (:bottom %) bottom)) v))
+            v)]
+    {:h h :v v}))
+
+(declare grid-cells)
+
+(defn- word-in-cell? [[cell-x0 cell-top cell-x1 cell-bottom]
+                     {:keys [x0 top x1 bottom]}]
+  (let [[center-x center-y] (g/center [x0 top x1 bottom])]
+    (and (<= cell-x0 center-x) (< center-x cell-x1)
+         (<= cell-top center-y) (< center-y cell-bottom))))
+
+(defn- coherent-edge-family? [edges start end tolerance]
+  (when (seq edges)
+    (let [min-start (reduce min (map start edges))
+          max-end (reduce max (map end edges))]
+      (every? #(and (<= (- (double (start %)) min-start) tolerance)
+                    (<= (- max-end (double (end %))) tolerance))
+              edges))))
+
+(defn- recovers-uncovered-words? [before after words x-tolerance y-tolerance]
+  (let [before-cells (grid-cells before x-tolerance y-tolerance)
+        after-cells (grid-cells after x-tolerance y-tolerance)
+        added-cells (remove (set before-cells) after-cells)]
+    (and (coherent-edge-family? (:h before) :x0 :x1 x-tolerance)
+         (coherent-edge-family? (:v before) :top :bottom y-tolerance)
+         (seq added-cells)
+         (every? (fn [cell]
+                   (some (fn [word]
+                           (and (word-in-cell? cell word)
+                                (not-any? (fn [prior]
+                                            (word-in-cell? prior word))
+                                          before-cells)))
+                         words))
+                 added-cells))))
+
 (defn- strategy-edges [doc words objs opts]
   (let [bbox (page-bbox doc opts)
         page (.getPage doc (dec (int (or (:page opts) 1))))
@@ -230,12 +313,12 @@
                      :lines-strict (:h strict-edges)
                      :text (text-horizontal-edges words opts)
                      :explicit [])
-        vertical (concat vertical-base
-                         (map #(explicit-v-edge % bbox)
-                              (:explicit-vertical-lines opts)))
-        horizontal (concat horizontal-base
-                           (map #(explicit-h-edge % bbox)
-                                (:explicit-horizontal-lines opts)))
+        explicit-v (map #(explicit-v-edge % bbox) (:explicit-vertical-lines opts))
+        explicit-h (map #(explicit-h-edge % bbox) (:explicit-horizontal-lines opts))
+        {:keys [h v]} (widen-to-explicit {:h horizontal-base :v vertical-base}
+                                         explicit-v explicit-h)
+        vertical (concat v explicit-v)
+        horizontal (concat h explicit-h)
         vertical (if (and (= :text (:vertical-strategy opts)) (seq horizontal))
                    (let [top (reduce min (map :y horizontal))
                          bottom (reduce max (map :y horizontal))]
@@ -246,7 +329,21 @@
                            x1 (reduce max (map :x vertical))]
                        (map #(assoc % :x0 x0 :x1 x1) horizontal))
                      horizontal)]
-    (normalize-edges {:h horizontal :v vertical} opts)))
+    (let [edges (normalize-edges {:h horizontal :v vertical} opts)
+          x-tolerance (double (or (:intersection-x-tolerance opts)
+                                  (:intersection-tolerance opts)))
+          y-tolerance (double (or (:intersection-y-tolerance opts)
+                                  (:intersection-tolerance opts)))]
+      (if (and (= :lines (:vertical-strategy opts))
+               (= :lines (:horizontal-strategy opts))
+               (empty? explicit-v)
+               (empty? explicit-h))
+        (let [closed (close-open-edges edges x-tolerance y-tolerance)]
+          (if (recovers-uncovered-words? edges closed words
+                                         x-tolerance y-tolerance)
+            closed
+            edges))
+        edges))))
 
 (defn- cell-bounded? [{:keys [h v]} x0 top x1 bottom x-tol y-tol]
   (and (some #(and (<= (Math/abs (- (double (:y %)) top)) y-tol)
