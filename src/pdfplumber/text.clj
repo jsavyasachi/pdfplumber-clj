@@ -9,7 +9,8 @@
   (:require [clojure.string :as str]
             [pdfplumber.geometry :as g]
             [pdfplumber.page :as page])
-  (:import [org.apache.pdfbox.pdmodel PDDocument]
+  (:import [org.apache.pdfbox.cos COSDictionary COSName]
+           [org.apache.pdfbox.pdmodel PDDocument]
            [org.apache.pdfbox.text PDFTextStripper TextPosition]
            [org.apache.pdfbox.util Matrix]
            [java.util List]
@@ -137,15 +138,39 @@
 
 (defn- collecting-stripper
   "A PDFTextStripper that adds each char map, tagged with `page-no`, to `acc`."
-  ^PDFTextStripper [acc page-no page-width page-height rotation doctop-offset use-text-flow]
-  (if use-text-flow
-    (proxy [PDFTextStripper] []
-      (processTextPosition [^TextPosition tp]
-        (swap! acc conj (tp->char tp page-no page-width page-height rotation doctop-offset))))
-    (proxy [PDFTextStripper] []
-      (writeString [^String _text ^List text-positions]
-        (doseq [^TextPosition tp text-positions]
-          (swap! acc conj (tp->char tp page-no page-width page-height rotation doctop-offset)))))))
+  (^PDFTextStripper [acc page-no page-width page-height rotation doctop-offset use-text-flow]
+   (if use-text-flow
+     (proxy [PDFTextStripper] []
+       (processTextPosition [^TextPosition tp]
+         (swap! acc conj (tp->char tp page-no page-width page-height rotation doctop-offset))))
+     (proxy [PDFTextStripper] []
+       (writeString [^String _text ^List text-positions]
+         (doseq [^TextPosition tp text-positions]
+           (swap! acc conj (tp->char tp page-no page-width page-height rotation doctop-offset)))))))
+  (^PDFTextStripper [acc page-no page-width page-height rotation doctop-offset
+                     use-text-flow mcid-state]
+   (let [add-char (fn [^TextPosition tp]
+                    (let [char (tp->char tp page-no page-width page-height rotation doctop-offset)]
+                      (swap! acc conj (if mcid-state
+                                        (assoc char :mcid (peek @mcid-state))
+                                        char))))]
+     (if use-text-flow
+       (proxy [PDFTextStripper] []
+         (beginMarkedContentSequence [^COSName _tag ^COSDictionary properties]
+           (swap! mcid-state conj (when properties
+                                    (let [mcid (.getInt properties COSName/MCID -1)]
+                                      (when (not= -1 mcid) mcid)))))
+         (endMarkedContentSequence [] (swap! mcid-state pop))
+         (processTextPosition [^TextPosition tp] (add-char tp)))
+       (proxy [PDFTextStripper] []
+         (beginMarkedContentSequence [^COSName _tag ^COSDictionary properties]
+           (swap! mcid-state conj (when properties
+                                    (let [mcid (.getInt properties COSName/MCID -1)]
+                                      (when (not= -1 mcid) mcid)))))
+         (endMarkedContentSequence [] (swap! mcid-state pop))
+         (writeString [^String _text ^List text-positions]
+           (doseq [^TextPosition tp text-positions]
+             (add-char tp))))))))
 
 (defn- page-height [^PDDocument doc ^long p]
   (double (.getHeight (.getMediaBox (.getPage doc (dec (int p)))))))
@@ -153,16 +178,22 @@
 (defn- doctop-offset [^PDDocument doc ^long p]
   (reduce + 0.0 (map #(page-height doc %) (range 1 p))))
 
-(defn- page-chars [^PDDocument doc ^long p use-text-flow]
+(defn- page-chars [^PDDocument doc ^long p use-text-flow include-mcid?]
   (let [acc (atom [])
+        mcid-state (when include-mcid? (atom []))
         page (.getPage doc (dec (int p)))
         box (.getMediaBox page)
         width (double (.getWidth box))
         height (page-height doc p)
         rotation (mod (.getRotation page) 360)
-        ^PDFTextStripper stripper (collecting-stripper acc p width height rotation
+        ^PDFTextStripper stripper (if include-mcid?
+                                  (collecting-stripper acc p width height rotation
                                                        (doctop-offset doc p)
-                                                       use-text-flow)]
+                                                       use-text-flow
+                                                       mcid-state)
+                                  (collecting-stripper acc p width height rotation
+                                                       (doctop-offset doc p)
+                                                       use-text-flow))]
     (.setSortByPosition stripper false)
     (.setSuppressDuplicateOverlappingText stripper false)
     (.setStartPage stripper (int p))
@@ -201,9 +232,9 @@
    (keep chars whose center falls inside `[x0 top x1 bottom]`)."
   ([doc] (chars doc {}))
   ([^PDDocument doc opts]
-   (let [{:keys [page bbox use-text-flow view-operations]} (normalize-options opts)
+   (let [{:keys [page bbox use-text-flow view-operations include-mcid?]} (normalize-options opts)
          pages (if page [(long page)] (range 1 (inc (.getNumberOfPages doc))))
-         cs (into [] (mapcat #(page-chars doc % use-text-flow)) pages)]
+         cs (into [] (mapcat #(page-chars doc % use-text-flow include-mcid?)) pages)]
      (cond-> (if (and bbox (not view-operations))
                (filterv #(g/within? bbox (g/center (char-bbox %))) cs)
                cs)

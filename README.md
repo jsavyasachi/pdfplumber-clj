@@ -196,10 +196,17 @@ The Tess4J dependency and Tesseract installation are owned by the caller.
 
 `structure-tree` returns the nested logical structure of a tagged PDF.
 `page-structure-tree` limits it to a 1-based page. Untagged PDFs return `[]`.
+`character-associations` returns extracted characters with their directly
+referenced element, or `:element nil` and `:confidence :unmapped` when no
+direct MCID mapping exists. `text-spans` groups adjacent characters with the
+same direct association. Both association functions return `[]` for an
+untagged PDF; they never infer an ancestor element.
 
 ```clojure
 (pdf/structure-tree doc)
 (pdf/page-structure-tree doc 1)
+(pdf/character-associations doc)
+(pdf/text-spans doc)
 ```
 
 ## Form fields

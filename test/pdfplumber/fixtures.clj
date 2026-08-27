@@ -9,6 +9,8 @@
            [org.apache.pdfbox.pdmodel.encryption AccessPermission StandardProtectionPolicy]
            [org.apache.pdfbox.pdmodel.interactive.annotation PDAnnotationLink PDAnnotationText]
            [org.apache.pdfbox.pdmodel.interactive.action PDActionURI]
+           [org.apache.pdfbox.pdmodel.documentinterchange.logicalstructure
+            PDMarkedContentReference PDStructureElement PDStructureTreeRoot]
            [org.apache.pdfbox.util Matrix]
            [java.awt Color]
            [java.awt.image BufferedImage]
@@ -39,6 +41,50 @@
          (.showText cs text)
          (.endText cs)))
      (->bytes doc))))
+
+(defn tagged-text-pdf
+  "Single-page tagged PDF with an H1 and P marked-content span."
+  ^bytes []
+  (with-open [doc (PDDocument.)]
+    (let [page (PDPage. PDRectangle/LETTER)
+          root (PDStructureTreeRoot.)
+          heading (PDStructureElement. "H1" root)
+          paragraph (PDStructureElement. "P" root)
+          heading-ref (PDMarkedContentReference.)
+          paragraph-ref (PDMarkedContentReference.)]
+      (.addPage doc page)
+      (.setStructureTreeRoot (.getDocumentCatalog doc) root)
+      (.setPage heading page)
+      (.setPage paragraph page)
+      (.setPage heading-ref page)
+      (.setMCID heading-ref 7)
+      (.setPage paragraph-ref page)
+      (.setMCID paragraph-ref 11)
+      (.appendKid heading heading-ref)
+      (.appendKid paragraph paragraph-ref)
+      (.appendKid root heading)
+      (.appendKid root paragraph)
+      (with-open [cs (PDPageContentStream. doc page)]
+        (.beginMarkedContent cs (org.apache.pdfbox.cos.COSName/getPDFName "Span") 7)
+        (.beginText cs)
+        (.setFont cs (helvetica) 12.0)
+        (.newLineAtOffset cs (float 72.0) (float 700.0))
+        (.showText cs "Heading")
+        (.endText cs)
+        (.endMarkedContent cs)
+        (.beginMarkedContent cs (org.apache.pdfbox.cos.COSName/getPDFName "Span") 11)
+        (.beginText cs)
+        (.setFont cs (helvetica) 12.0)
+        (.newLineAtOffset cs (float 72.0) (float 680.0))
+        (.showText cs "Paragraph")
+        (.endText cs)
+        (.endMarkedContent cs)
+        (.beginText cs)
+        (.setFont cs (helvetica) 12.0)
+        (.newLineAtOffset cs (float 72.0) (float 660.0))
+        (.showText cs "Loose")
+        (.endText cs)))
+    (->bytes doc)))
 
 (defn multi-page-pdf
   "PDF with one page for each string in `texts`. Each is drawn at (72, 700). Returns byte[]."
