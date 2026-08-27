@@ -14,7 +14,9 @@
             [pdfplumber.attachments :as attachments]
             [pdfplumber.permissions :as permissions]
             [pdfplumber.signature :as signature]
-            [pdfplumber.page :as page])
+            [pdfplumber.page :as page]
+            [pdfplumber.ocr :as ocr]
+            [clojure.string :as str])
   (:import [org.apache.pdfbox.pdmodel PDDocument]))
 
 (set! *warn-on-reflection* true)
@@ -173,6 +175,32 @@
    See `pdfplumber.text/text`."
   ([source] (text source {}))
   ([source opts] (let [[doc o] (page/resolve-source source opts)] (text/text doc o))))
+
+(defn page-text-status
+  "Report whether a page has extractable text and should be sent to OCR.
+
+   Returns a map with `:status` (`:text-layer` or `:no-text-layer`),
+   `:text-layer?`, `:ocr-candidate?`, `:page-number`, and `:char-count`.
+   Whitespace-only character records do not count as an extractable layer.
+   Accepts a document handle or a derived page view."
+  ([source] (page-text-status source {}))
+  ([source opts]
+   (let [[doc resolved] (page/resolve-source source opts)
+         page-number (long (or (:page resolved) 1))
+         chars (text/chars doc resolved)
+         char-count (count (clojure.core/filter #(not (str/blank? (:text %))) chars))
+         text-layer? (pos? char-count)]
+     {:page-number page-number
+      :char-count char-count
+      :text-layer? text-layer?
+      :ocr-candidate? (not text-layer?)
+      :status (if text-layer? :text-layer :no-text-layer)})))
+
+(defn ocr-candidate?
+  "True when `source` has no non-whitespace extractable text layer.
+   Accepts a document handle or a derived page view."
+  ([source] (ocr-candidate? source {}))
+  ([source opts] (:ocr-candidate? (page-text-status source opts))))
 
 (defn extract-text
   "Advanced text extraction. See `pdfplumber.text/extract-text`."
@@ -364,6 +392,12 @@
   "True when `x` is a PageImage. See `pdfplumber.image/page-image?`."
   [x]
   (image/page-image? x))
+
+(defn page-image->text
+  "Pass a `PageImage` to a caller-supplied `pdfplumber.ocr/PageImageToText`
+   implementation. OCR engines are intentionally not bundled."
+  [engine page-image]
+  (ocr/page-image->text engine page-image))
 
 (defn structure-tree
   "Tagged-PDF logical structure as nested element maps, or `[]` when the PDF is

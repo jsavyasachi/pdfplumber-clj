@@ -155,6 +155,43 @@ More verbs in `pdfplumber.image`:
 - Outline: `outline-words`, `outline-chars`
 - Manage: `reset`, `copy`, `save`, `show`
 
+## OCR integration seam
+
+`page-text-status` makes scanned-page candidates explicit without bundling an
+OCR engine. A page is an OCR candidate when it has no non-whitespace characters
+in its extractable text layer:
+
+```clojure
+(pdf/with-pdf [doc "mixed.pdf"]
+  (pdf/page-text-status doc {:page 1})
+  ;; => {:status :no-text-layer, :ocr-candidate? true, ...}
+  )
+```
+
+Rasterize a candidate with `to-image`, then supply an engine that implements
+`pdfplumber.ocr/PageImageToText`. The protocol receives a `PageImage`; its
+`:image` field is the `java.awt.image.BufferedImage` for the OCR library. OCR
+is intentionally a caller dependency, not a pdfplumber-clj dependency. For
+example, a caller with Tess4J on its own classpath can wire Tesseract like this:
+
+```clojure
+(require '[pdfplumber.core :as pdf]
+         '[pdfplumber.ocr :as ocr])
+
+(let [tesseract (doto (net.sourceforge.tess4j.Tesseract.)
+                  (.setLanguage "eng"))
+      engine (reify ocr/PageImageToText
+               (text-from-page-image [_ page-image]
+                 (.doOCR tesseract ^java.awt.image.BufferedImage
+                         (:image page-image))))]
+  (pdf/with-pdf [doc "scan.pdf"]
+    (when (pdf/ocr-candidate? doc {:page 1})
+      (pdf/page-image->text engine
+                            (pdf/to-image doc {:page 1 :resolution 300})))))
+```
+
+The Tess4J dependency and Tesseract installation are owned by the caller.
+
 ## Structure tree
 
 `structure-tree` returns the nested logical structure of a tagged PDF.
