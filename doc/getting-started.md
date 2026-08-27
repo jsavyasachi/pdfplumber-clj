@@ -46,6 +46,25 @@ including after an exception:
   (pdf/text doc {:page 1}))
 ```
 
+## Scanned PDFs and OCR
+
+The library does not perform OCR, but it identifies pages that need it and
+renders the input image for a caller-supplied engine. `page-text-status` returns
+`:status :no-text-layer` and `:ocr-candidate? true` when the page has no
+non-whitespace extractable characters. `ocr-candidate?` is the predicate form.
+
+```clojure
+(pdf/with-pdf [doc "scan.pdf"]
+  (when (pdf/ocr-candidate? doc {:page 1})
+    (pdf/to-image doc {:page 1 :resolution 300})))
+```
+
+The `pdfplumber.ocr/PageImageToText` protocol defines the integration seam. An
+implementation receives the `PageImage` returned by `to-image` and can pass its
+`:image` (`java.awt.image.BufferedImage`) to any OCR engine. For a complete
+Tess4J/Tesseract example, including the caller-owned Tess4J dependency, see
+the [OCR integration seam](../README.md#ocr-integration-seam) section.
+
 PDF loading errors are thrown as `clojure.lang.ExceptionInfo` with
 `:pdfplumber/error` in `ex-data`. Current error values are `:invalid-input`,
 `:encrypted-pdf`, and `:parse-failed`.
