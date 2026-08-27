@@ -1,7 +1,7 @@
 (ns pdfplumber.core
   "Public API for pdfplumber-clj: open PDFs and extract text, words, characters,
    geometric objects, and tables as plain Clojure data."
-  (:refer-clojure :exclude [chars filter])
+  (:refer-clojure :exclude [chars filter flatten])
   (:require [pdfplumber.document :as document]
             [pdfplumber.text :as text]
             [pdfplumber.objects :as objects]
@@ -50,6 +50,31 @@
   "Map of terminal field names to values. See `pdfplumber.form/field-values`."
   [doc]
   (form/field-values doc))
+
+(defn set-values
+  "Set AcroForm field values and return the document handle."
+  [doc values]
+  (form/set-values doc values))
+
+(defn refresh-appearances
+  "Regenerate AcroForm field appearance streams and return the document handle."
+  [doc]
+  (form/refresh-appearances doc))
+
+(defn flatten
+  "Flatten AcroForm fields into page content and return the document handle."
+  [doc]
+  (form/flatten doc))
+
+(defn export-fdf
+  "Export AcroForm data to a path, File, or OutputStream and return the destination."
+  [doc dest]
+  (form/export-fdf doc dest))
+
+(defn import-fdf
+  "Import FDF data from bytes, an InputStream, or a path and return the document handle."
+  [doc source]
+  (form/import-fdf doc source))
 
 (defn outline
   "Nested document outline. See `pdfplumber.outline/outline`."

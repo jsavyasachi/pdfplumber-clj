@@ -179,7 +179,19 @@ name-to-value map.
 
 (pdf/field-values doc)
 ;; => {"customer.email" "ada@example.com"}
+
+;; Mutators return the same open PDDocument handle.
+(pdf/set-values doc {"customer.email" "ada@example.org"})
+(pdf/refresh-appearances doc)
+(pdf/export-fdf doc "form.fdf")
+(pdf/import-fdf doc "form.fdf")
+(pdf/flatten doc)
 ```
+
+`set-values` accepts strings for text and scalar choice fields, collections for
+multi-select choices, and booleans (or the checkbox on-value) for checkboxes.
+The caller saves and closes the open document; `flatten` removes its interactive
+fields after baking their appearances into page content.
 
 Widget annotations from `annots` also carry `:field-name`, `:field-value`, and
 `:field-type`.
