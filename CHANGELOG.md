@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+- Opt-in access to original embedded image stream bytes, filters, and format
+  alongside the existing decoded PNG representation.
+
 ## [1.12.0] - 2026-08-27
 
 ### Added

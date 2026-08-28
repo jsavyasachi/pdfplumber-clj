@@ -179,7 +179,13 @@
         (let [decoded (first (pdf/images d {:include-image-data? true}))]
           (is (bytes? (:bytes decoded)))
           (is (= [-119 80 78 71]
-                 (mapv int (take 4 (:bytes decoded))))))))))
+                 (mapv int (take 4 (:bytes decoded)))))))
+      (testing "original encoded stream data is opt-in"
+        (let [original (first (pdf/images d {:include-original-image-data? true}))]
+          (is (bytes? (:raw-bytes original)))
+          (is (seq (:filters original)))
+          (is (= :png (:format original)))
+          (is (= "png" (:suffix original))))))))
 
 (deftest rotated-rect-coordinates
   (pdf/with-pdf [d (fix/rotated-objects-pdf)]
