@@ -61,11 +61,13 @@
 
 (deftest reducible-page-limit-fails-explicitly
   (pdf/with-pdf [doc (fix/multi-page-pdf ["one" "two"])]
-    (try
-      (into [] (r/reducible-chars doc {:max-pages 1}))
-      (is false "expected page limit")
-      (catch clojure.lang.ExceptionInfo e
-        (is (= :limit-exceeded (:pdfplumber/error (ex-data e))))))))
+    (let [outcome (try
+                    ;; On success this yields a char count, which fails the
+                    ;; assertion below and reports how far the reduce got.
+                    (count (into [] (r/reducible-chars doc {:max-pages 1})))
+                    (catch clojure.lang.ExceptionInfo e
+                      (:pdfplumber/error (ex-data e))))]
+      (is (= :limit-exceeded outcome)))))
 
 (deftest cropped-page-view-is-preserved
   (pdf/with-pdf [doc (fix/simple-text-pdf)]

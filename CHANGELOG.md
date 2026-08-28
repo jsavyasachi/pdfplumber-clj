@@ -11,6 +11,11 @@
 - Object and reducible extraction accept explicit page/object limits and fail with
   `:limit-exceeded` instead of silently truncating results.
 
+### Changed
+
+- The CLI now rejects `--pages` selections containing duplicates or values
+  outside the document's page count, instead of accepting them silently.
+
 ## [1.12.0] - 2026-08-27
 
 ### Added
