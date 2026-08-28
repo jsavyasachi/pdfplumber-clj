@@ -15,7 +15,7 @@
            [org.apache.pdfbox.contentstream.operator.graphics AppendRectangleToPath
             CurveTo DrawObject LineTo MoveTo]
            [org.apache.pdfbox.contentstream.operator.state Concatenate Restore Save]
-           [org.apache.pdfbox.cos COSFloat COSName COSNumber]
+           [org.apache.pdfbox.cos COSArray COSFloat COSName COSNumber COSStream]
            [org.apache.pdfbox.pdmodel.graphics.image PDImage]
            [org.apache.pdfbox.pdmodel.graphics.color PDColor]
            [org.apache.pdfbox.pdmodel.graphics.state PDGraphicsState]
@@ -187,7 +187,23 @@
     (ImageIO/write (.getImage image) "png" out)
     (.toByteArray out)))
 
-(defn- image-obj [page-h page-no ^PDImage image ^Matrix ctm include-data?]
+(defn- filter-names [filters]
+  (cond
+    (instance? COSName filters) [(keyword (.getName ^COSName filters))]
+    (instance? COSArray filters) (mapv #(keyword (.getName ^COSName %))
+                                       (filter #(instance? COSName %) filters))
+    :else []))
+
+(defn- raw-image-data [^PDImage image]
+  (let [^COSStream stream (.getCOSObject image)]
+    (with-open [^java.io.InputStream in (.createRawInputStream stream)]
+      {:raw-bytes (.readAllBytes in)
+       :filters (filter-names (.getFilters stream))
+       :format (some-> (.getSuffix image) keyword)
+       :suffix (.getSuffix image)})))
+
+(defn- image-obj [page-h page-no ^PDImage image ^Matrix ctm include-data?
+                 include-original-data?]
   (let [corners (if (vector? ctm)
                   (map #(transform-point ctm %) [[0 0] [1 0] [0 1] [1 1]])
                   (map (fn [[x y]] (pt (.transformPoint ctm (float x) (float y))))
@@ -208,7 +224,8 @@
              :mask? (.isStencil image)
              :smask? (.containsKey cos-image COSName/SMASK)
              :page-number page-no}
-      include-data? (assoc :bytes (png-bytes image)))))
+      include-data? (assoc :bytes (png-bytes image))
+      include-original-data? (merge (raw-image-data image)))))
 
 (defn- integral-number [value]
   (let [rounded (Math/rint (double value))]
@@ -259,7 +276,8 @@
 
 (defn- object-engine
   "A PDFGraphicsStreamEngine that adds top-left object maps to `out`."
-  ^PDFGraphicsStreamEngine [^PDPage page page-no doctop-offset out include-image-data?]
+  ^PDFGraphicsStreamEngine [^PDPage page page-no doctop-offset out include-image-data?
+                             include-original-image-data?]
   (let [page-h (pdf-float->double (.getHeight (.getMediaBox page)))
         st (atom {:cur nil :start nil :subpaths [] :rects []})
         pending-rectangle (atom nil)
@@ -352,7 +370,8 @@
               (swap! out conj
                      (image-obj page-h page-no pd-image
                                 ctm
-                                include-image-data?))))
+                                include-image-data?
+                                include-original-image-data?))))
           (clip [_winding-rule])
           (shadingFill [_shading-name]))]
     (clojure.core/reset! engine-holder engine)
@@ -466,7 +485,8 @@
       (pdf-float->double (.getWidth box))
       (pdf-float->double (.getHeight box)))))
 
-(defn- page-objects [^PDDocument doc ^long p include-image-data?]
+(defn- page-objects [^PDDocument doc ^long p include-image-data?
+                    include-original-image-data?]
   (let [page (.getPage doc (dec (int p)))
         box (.getMediaBox page)
         page-width (pdf-float->double (.getWidth box))
@@ -474,7 +494,8 @@
         rotation (mod (.getRotation page) 360)
         offset (reduce + 0.0 (map #(page-display-height doc %) (range 1 p)))
         out (atom [])
-        ^PDFGraphicsStreamEngine engine (object-engine page p offset out include-image-data?)]
+        ^PDFGraphicsStreamEngine engine (object-engine page p offset out include-image-data?
+                                                          include-original-image-data?)]
     (.processPage engine page)
     (mapv #(rotate-object % page-width page-height rotation offset) @out)))
 
@@ -486,20 +507,42 @@
    :top :x1 :bottom :page-number ...}`. Image maps include pixel dimensions,
    color metadata, and `:object-type :image`. Options: `:page` (1-based),
    `:types` (a set to keep), `:bbox` (keep intersecting objects), and
-   `:include-image-data?` (attach decoded PNG `:bytes`; false by default)."
+   `:include-image-data?` (attach decoded PNG `:bytes`; false by default), and
+   `:include-original-image-data?` (attach encoded `:raw-bytes`, `:filters`,
+   `:format`, and `:suffix`; false by default)."
   ([doc] (objects doc {}))
-  ([^PDDocument doc {:keys [page bbox types include-image-data? view-operations]}]
-   (let [pages (if page [(long page)] (range 1 (inc (.getNumberOfPages doc))))
-         all (into [] (mapcat #(page-objects doc % include-image-data?) pages))]
-     (cond-> (cond->> all
+  ([^PDDocument doc {:keys [page bbox types include-image-data?
+                             include-original-image-data? view-operations
+                             max-pages max-objects]}]
+   (let [page-count (.getNumberOfPages doc)
+         pages (if page [(long page)] (range 1 (inc page-count)))]
+     (when (and max-pages (> (count pages) max-pages))
+       (throw (ex-info "Page extraction limit exceeded"
+                       {:pdfplumber/error :limit-exceeded
+                        :limit max-pages :actual (count pages)})))
+     (when (and max-objects (neg? max-objects))
+       (throw (ex-info "Object extraction limit must be non-negative"
+                       {:pdfplumber/error :invalid-limit :limit max-objects})))
+     (when (and page max-pages (> page-count 0) (> page max-pages))
+       (throw (ex-info "Page extraction limit exceeded"
+                       {:pdfplumber/error :limit-exceeded
+                        :limit max-pages :page page})))
+     (let [all (into [] (mapcat #(page-objects doc % include-image-data?
+                                             include-original-image-data?) pages))]
+       (when (and max-objects (> (count all) max-objects))
+         (throw (ex-info "Object extraction limit exceeded"
+                         {:pdfplumber/error :limit-exceeded
+                          :limit max-objects :actual (count all)})))
+       (cond-> (cond->> all
                types (filterv #(contains? types (:type %)))
                (and bbox (not view-operations))
                (filterv #(g/intersects? bbox (obj-bbox %))))
-       view-operations (page/apply-view view-operations)))))
+         view-operations (page/apply-view view-operations))))))
 
 (defn images
   "Vector of drawn image objects. Accepts the same options as `objects`; decoded
-   PNG `:bytes` are included only with `:include-image-data? true`."
+   PNG `:bytes` are included only with `:include-image-data? true`. Encoded
+   stream data is included only with `:include-original-image-data? true`."
   ([doc] (images doc {}))
   ([doc opts]
    (objects doc (assoc opts :types #{:image}))))

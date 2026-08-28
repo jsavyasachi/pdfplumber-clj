@@ -19,8 +19,8 @@
 (def ^:private usage
   (str "Usage: clojure -M -m pdfplumber.cli <pdf-path> [options]\n\n"
        "Options:\n"
-       "  --format csv|json        Output format (default: csv)\n"
-       "  --pages 1,2,5            Page numbers (comma- or space-separated)\n"
+       "  --format csv|json|text    Output format (default: csv)\n"
+       "  --pages 1,2,5 or 1-3     Page numbers/ranges (comma- or space-separated)\n"
        "  --types char,line,...    Object types (default: all)\n"
        "  --precision N            Round numeric attributes to N decimals\n"
        "  --indent N               JSON indentation width\n"
@@ -52,13 +52,23 @@
   (let [parts (comma-values values)]
     (if (empty? parts)
       {:error "--pages requires at least one page number"}
-      (try
-        (let [pages (mapv parse-long parts)]
-          (if (every? #(and % (pos? %)) pages)
-            pages
-            {:error "--pages requires positive page numbers"}))
-        (catch NumberFormatException _
-          {:error "--pages requires positive page numbers"})))))
+      (let [parse-part (fn [part]
+                         (cond
+                           (re-matches #"[1-9][0-9]*" part) [(parse-long part)]
+                           (re-matches #"([1-9][0-9]*)-([1-9][0-9]*)" part)
+                           (let [[_ start end] (re-matches #"([1-9][0-9]*)-([1-9][0-9]*)" part)
+                                 start (parse-long start) end (parse-long end)]
+                             (if (<= start end)
+                               (range start (inc end))
+                               {:error "--pages contains a reversed range"}))
+                           :else {:error "--pages requires positive page numbers or ranges"}))
+            parsed (mapv parse-part parts)]
+        (if-let [error (some #(when (map? %) (:error %)) parsed)]
+          {:error error}
+          (let [pages (vec (mapcat identity parsed))]
+            (if (= (count pages) (count (distinct pages)))
+              pages
+              {:error "--pages cannot contain duplicate page numbers"})))))))
 
 (defn- parse-types [values]
   (let [parts (comma-values values)
@@ -81,8 +91,8 @@
           "--format"
           (let [value (second args)]
             (cond
-              (nil? value) {:error "--format requires csv or json"}
-              (not (#{"csv" "json"} value))
+              (nil? value) {:error "--format requires csv, json, or text"}
+              (not (#{"csv" "json" "text"} value))
               {:error (str "Unsupported format: " value)}
               :else (recur (nnext args) (assoc opts :format (keyword value)))))
 
@@ -145,7 +155,11 @@
     :else value))
 
 (defn- selected-pages [doc pages]
-  (let [wanted (when pages (set pages))]
+  (let [wanted (when pages (set pages))
+        page-count (.getNumberOfPages ^org.apache.pdfbox.pdmodel.PDDocument doc)]
+    (when (some #(or (not (pos? %)) (> % page-count)) pages)
+      (throw (ex-info "Page selection is out of range"
+                      {:pages pages :page-count page-count})))
     (cond->> (pdf/pages doc)
       wanted (filterv #(contains? wanted (:page-number %))))))
 
@@ -209,6 +223,29 @@
          (map #(str/join "," (map csv-string %)))
          (str/join "\n"))))
 
+(defn- text-value [value]
+  (cond
+    (nil? value) ""
+    (keyword? value) (name value)
+    (string? value) value
+    (or (coll? value) (sequential? value)) (pr-str value)
+    :else (str value)))
+
+(defn- render-text [doc {:keys [pages types precision]}]
+  (let [page-lines
+        (for [{:keys [page-number]} (selected-pages doc pages)]
+          (let [rows (for [type types
+                           object ((get extractors type) doc {:page page-number})]
+                       (str (name type) ": "
+                            (str/join " "
+                                      (for [key (sort-by name (keys object))
+                                            :when (not= :object-type key)]
+                                        (str (str/replace (name key) "-" "_") "="
+                                             (text-value (transform-value (get object key)
+                                                                          precision false)))))))]
+            (cons (str "Page " page-number) rows)))]
+    (str/join "\n" (mapcat identity page-lines))))
+
 (defn render
   "Render selected PDF objects."
   [doc opts]
@@ -216,6 +253,7 @@
     (case (:format opts)
       :json (render-json doc opts)
       :csv (render-csv doc opts)
+      :text (render-text doc opts)
       (throw (ex-info "Unsupported output format" {:format (:format opts)})))))
 
 (defn -main

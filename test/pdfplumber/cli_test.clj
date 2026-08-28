@@ -18,10 +18,20 @@
             :pages [1 3]
             :types [:char :line]
             :precision 2
-            :indent 4}
+           :indent 4}
            (cli/parse-args ["sample.pdf" "--format" "json"
                             "--pages" "1,3" "--types" "char,line"
                             "--precision" "2" "--indent" "4"]))))
+  (testing "text format and inclusive ranges"
+    (is (= {:path "sample.pdf" :format :text}
+           (select-keys (cli/parse-args ["sample.pdf" "--format" "text"])
+                        [:path :format])))
+    (is (= [1 2 3 5]
+           (:pages (cli/parse-args ["sample.pdf" "--pages" "1-3,5"]))))
+    (doseq [args [["sample.pdf" "--pages" "3-1"]
+                  ["sample.pdf" "--pages" "1,1"]
+                  ["sample.pdf" "--pages" "1-"]]]
+      (is (string? (:error (cli/parse-args args))))))
   (testing "space-separated lists"
     (is (= [1 3 5]
            (:pages (cli/parse-args ["sample.pdf" "--pages" "1" "3" "5"]))))
@@ -73,3 +83,16 @@
                                                       :precision 1}))))
           x1-index (.indexOf ^java.util.List header "x1")]
       (is (= "80.7" (nth row x1-index))))))
+
+(deftest render-text
+  (pdf/with-pdf [doc (fix/multi-page-pdf ["one" "two" "three"])]
+    (let [output (cli/render doc {:format :text :pages [2] :types [:char]
+                                  :precision 1})]
+      (is (= "Page 2" (first (str/split-lines output))))
+      (is (str/includes? output "char: adv=3.3"))))
+  (pdf/with-pdf [doc (fix/multi-page-pdf ["one" "two"])]
+    (try
+      (cli/render doc {:format :text :pages [1 3]})
+      (is false "expected out-of-range page error")
+      (catch clojure.lang.ExceptionInfo e
+        (is (re-find #"out of range" (.getMessage e)))))))

@@ -2,8 +2,10 @@
   "Load documents and handle errors. PDFBox parses documents here. Higher
    namespaces use the returned PDDocument handle."
   (:import [org.apache.pdfbox Loader]
-           [org.apache.pdfbox.pdmodel PDDocument PDDocumentInformation PDPage]
+           [org.apache.pdfbox.pdmodel PDDocument PDDocumentCatalog PDDocumentInformation PDPage]
            [org.apache.pdfbox.pdmodel.common PDRectangle]
+           [org.apache.pdfbox.pdmodel.common PDMetadata]
+           [org.apache.pdfbox.pdmodel.interactive.viewerpreferences PDViewerPreferences]
            [org.apache.pdfbox.io RandomAccessReadBuffer]
            [org.apache.pdfbox.pdmodel.encryption InvalidPasswordException]
            [java.io File InputStream IOException]
@@ -74,13 +76,38 @@
 (defn- cal->iso [^Calendar c]
   (when c (str (.toInstant c))))
 
+(defn- xmp-bytes [^PDMetadata metadata]
+  (when metadata
+    (with-open [^InputStream in (.exportXMPMetadata metadata)]
+      (.readAllBytes in))))
+
+(defn- viewer-preferences [^PDDocumentCatalog catalog]
+  (when-let [^PDViewerPreferences prefs (.getViewerPreferences catalog)]
+    {:display-doc-title? (.displayDocTitle prefs)
+     :center-window? (.centerWindow prefs)
+     :hide-toolbar? (.hideToolbar prefs)
+     :hide-menubar? (.hideMenubar prefs)
+     :hide-window-ui? (.hideWindowUI prefs)
+     :fit-window? (.fitWindow prefs)
+     :reading-direction (.getReadingDirection prefs)
+     :non-full-screen-page-mode (.getNonFullScreenPageMode prefs)
+     :view-area (.getViewArea prefs)
+     :view-clip (.getViewClip prefs)
+     :print-area (.getPrintArea prefs)
+     :print-clip (.getPrintClip prefs)
+     :duplex (.getDuplex prefs)
+     :print-scaling (.getPrintScaling prefs)}))
+
 (defn metadata
   "Document metadata as a map. Always includes `:page-count`; document-info
    fields (`:title` `:author` `:subject` `:keywords` `:creator` `:producer`
    `:creation-date` `:modification-date`) are included only when present. Dates
    use ISO-8601 strings."
   [^PDDocument doc]
-  (let [info ^PDDocumentInformation (.getDocumentInformation doc)]
+  (let [info ^PDDocumentInformation (.getDocumentInformation doc)
+        catalog (.getDocumentCatalog doc)
+        labels (try (some-> (.getPageLabels catalog) .getLabelsByPageIndices vec)
+                    (catch IOException _ nil))]
     (into {:page-count (.getNumberOfPages doc)}
           (remove (comp nil? val))
           {:title (.getTitle info)
@@ -90,7 +117,11 @@
            :creator (.getCreator info)
            :producer (.getProducer info)
            :creation-date (cal->iso (.getCreationDate info))
-           :modification-date (cal->iso (.getModificationDate info))})))
+           :modification-date (cal->iso (.getModificationDate info))
+           :page-labels labels
+           :language (.getLanguage catalog)
+           :viewer-preferences (viewer-preferences catalog)
+           :xmp-metadata (xmp-bytes (.getMetadata catalog))})))
 
 (defn- normalize-box [^PDRectangle box rotation]
   (let [x0 (double (min (.getLowerLeftX box) (.getUpperRightX box)))
@@ -102,7 +133,7 @@
 (defn- invert-box [[x0 y0 x1 y1] media-height]
   [x0 (- media-height y1) x1 (- media-height y0)])
 
-(defn- page-map [^PDPage page ^long n]
+(defn- page-map [^PDPage page ^long n page-label]
   (let [rotation (mod (.getRotation page) 360)
         media-raw (normalize-box (.getMediaBox page) rotation)
         media-height (- (nth media-raw 3) (nth media-raw 1))
@@ -114,16 +145,23 @@
      :width w
      :height h
      :rotation rotation
+     :page-label page-label
      :mediabox mediabox
      :cropbox cropbox
+     :bleedbox (invert-box (normalize-box (.getBleedBox page) rotation) media-height)
+     :trimbox (invert-box (normalize-box (.getTrimBox page) rotation) media-height)
+     :artbox (invert-box (normalize-box (.getArtBox page) rotation) media-height)
      :bbox mediabox}))
 
 (defn pages
   "Vector of page maps with media, crop, and active bounding boxes, dimensions,
    rotation, and 1-based page numbers."
   [^PDDocument doc]
-  (mapv #(page-map (.getPage doc %) (inc %))
-        (range (.getNumberOfPages doc))))
+  (let [labels (try (some-> (.getPageLabels (.getDocumentCatalog doc))
+                                      .getLabelsByPageIndices)
+                    (catch IOException _ nil))]
+    (mapv #(page-map (.getPage doc %) (inc %) (when labels (nth labels %)))
+          (range (.getNumberOfPages doc)))))
 
 (defn page
   "The page map for 1-based page number `n`. Throws `ex-info`
@@ -132,6 +170,9 @@
   [^PDDocument doc n]
   (let [pc (.getNumberOfPages doc)]
     (if (and (integer? n) (<= 1 n pc))
-      (page-map (.getPage doc (dec n)) n)
+        (let [labels (try (some-> (.getPageLabels (.getDocumentCatalog doc))
+                                            .getLabelsByPageIndices)
+                        (catch IOException _ nil))]
+        (page-map (.getPage doc (dec n)) n (when labels (nth labels (dec n)))))
       (fail! :page-not-found (str "No page " n " (document has " pc ")")
              {:page n :page-count pc}))))

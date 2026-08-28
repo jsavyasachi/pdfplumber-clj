@@ -56,3 +56,19 @@
       (is (== 792.0 (:height p)))
       (is (= 0 (:rotation p)))
       (is (= p (first (pdf/pages d)))))))
+
+(deftest rich-metadata-and-page-boxes
+  (pdf/with-pdf [d (fix/rich-metadata-pdf)]
+    (let [m (pdf/metadata d)
+          pages (pdf/pages d)]
+      (is (= ["Appendix i" "Appendix ii"] (:page-labels m)))
+      (is (= "en-US" (:language m)))
+      (is (= {:display-doc-title? true :center-window? true}
+             (select-keys (:viewer-preferences m)
+                          [:display-doc-title? :center-window?])))
+      (is (bytes? (:xmp-metadata m)))
+      (is (= "Appendix i" (:page-label (first pages))))
+      (is (= "Appendix ii" (:page-label (second pages))))
+      (is (= [10.0 10.0 602.0 782.0] (:bleedbox (second pages))))
+      (is (= [12.0 10.0 602.0 780.0] (:trimbox (second pages))))
+      (is (= [20.0 10.0 600.0 772.0] (:artbox (second pages)))))))

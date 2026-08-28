@@ -8,9 +8,15 @@
 (set! *warn-on-reflection* true)
 
 (defn- page-numbers [^PDDocument doc opts]
-  (if-let [page-number (:page opts)]
-    [(long page-number)]
-    (range 1 (inc (.getNumberOfPages doc)))))
+  (let [pages (if-let [page-number (:page opts)]
+                [(long page-number)]
+                (range 1 (inc (.getNumberOfPages doc))))
+        max-pages (:max-pages opts)]
+    (when (and max-pages (> (count pages) max-pages))
+      (throw (ex-info "Page extraction limit exceeded"
+                      {:pdfplumber/error :limit-exceeded
+                       :limit max-pages :actual (count pages)})))
+    pages))
 
 (defn- preserve-reduced [f]
   (fn [acc value]
