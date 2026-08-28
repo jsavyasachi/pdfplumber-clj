@@ -888,6 +888,20 @@
           (.drawImage cs image (float 100) (float 600) (float 40) (float 30))))
       (->bytes doc))))
 
+(defn image-heavy-pdf
+  "Single page containing sixteen repeated raster image draws."
+  ^bytes []
+  (with-open [doc (PDDocument.)]
+    (let [page (PDPage. PDRectangle/LETTER)
+          raster (BufferedImage. 8 8 BufferedImage/TYPE_INT_RGB)]
+      (.addPage doc page)
+      (let [image (LosslessFactory/createFromImage doc raster)]
+        (with-open [cs (PDPageContentStream. doc page)]
+          (doseq [y (range 4) x (range 4)]
+            (.drawImage cs image (float (+ 20 (* x 140)))
+                        (float (+ 20 (* y 180))) (float 80) (float 80)))))
+      (->bytes doc))))
+
 (defn rotated-objects-pdf
   "Single 90-degree rotated page with a line, rectangle, curve, image, and link."
   ^bytes []
