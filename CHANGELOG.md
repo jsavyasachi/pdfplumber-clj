@@ -7,6 +7,7 @@
   alongside the existing decoded PNG representation.
 - Page labels, XMP metadata, viewer preferences, document language, and bleed,
   trim, and art boxes are now exposed.
+- The CLI supports a stable human-readable text format and inclusive page ranges.
 
 ## [1.12.0] - 2026-08-27
 
