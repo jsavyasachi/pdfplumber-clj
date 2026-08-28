@@ -150,6 +150,20 @@
         (is (pos? (count near-top)))
         (is (every? #(<= (:top %) 100) near-top))))))
 
+(deftest extraction-limits-fail-explicitly
+  (pdf/with-pdf [d (fix/multi-page-pdf ["one" "two"])]
+    (try
+      (pdf/objects d {:max-pages 1})
+      (is false "expected page limit")
+      (catch clojure.lang.ExceptionInfo e
+        (is (= :limit-exceeded (:pdfplumber/error (ex-data e)))))))
+  (pdf/with-pdf [d (fix/ruled-pdf)]
+    (try
+      (pdf/objects d {:types #{:line} :max-objects 1})
+      (is false "expected object limit")
+      (catch clojure.lang.ExceptionInfo e
+        (is (= :limit-exceeded (:pdfplumber/error (ex-data e))))))))
+
 (deftest image-extraction
   (pdf/with-pdf [d (fix/image-pdf)]
     (let [images (pdf/images d)

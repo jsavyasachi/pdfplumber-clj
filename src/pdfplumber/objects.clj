@@ -512,15 +512,32 @@
    `:format`, and `:suffix`; false by default)."
   ([doc] (objects doc {}))
   ([^PDDocument doc {:keys [page bbox types include-image-data?
-                             include-original-image-data? view-operations]}]
-   (let [pages (if page [(long page)] (range 1 (inc (.getNumberOfPages doc))))
-         all (into [] (mapcat #(page-objects doc % include-image-data?
+                             include-original-image-data? view-operations
+                             max-pages max-objects]}]
+   (let [page-count (.getNumberOfPages doc)
+         pages (if page [(long page)] (range 1 (inc page-count)))]
+     (when (and max-pages (> (count pages) max-pages))
+       (throw (ex-info "Page extraction limit exceeded"
+                       {:pdfplumber/error :limit-exceeded
+                        :limit max-pages :actual (count pages)})))
+     (when (and max-objects (neg? max-objects))
+       (throw (ex-info "Object extraction limit must be non-negative"
+                       {:pdfplumber/error :invalid-limit :limit max-objects})))
+     (when (and page max-pages (> page-count 0) (> page max-pages))
+       (throw (ex-info "Page extraction limit exceeded"
+                       {:pdfplumber/error :limit-exceeded
+                        :limit max-pages :page page})))
+     (let [all (into [] (mapcat #(page-objects doc % include-image-data?
                                              include-original-image-data?) pages))]
-     (cond-> (cond->> all
+       (when (and max-objects (> (count all) max-objects))
+         (throw (ex-info "Object extraction limit exceeded"
+                         {:pdfplumber/error :limit-exceeded
+                          :limit max-objects :actual (count all)})))
+       (cond-> (cond->> all
                types (filterv #(contains? types (:type %)))
                (and bbox (not view-operations))
                (filterv #(g/intersects? bbox (obj-bbox %))))
-       view-operations (page/apply-view view-operations)))))
+         view-operations (page/apply-view view-operations))))))
 
 (defn images
   "Vector of drawn image objects. Accepts the same options as `objects`; decoded
