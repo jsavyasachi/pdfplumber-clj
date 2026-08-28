@@ -4,6 +4,7 @@
    assert against known positions. PDFBox 3.0.x makes the fixtures."
   (:import [org.apache.pdfbox.pdmodel PDDocument PDDocumentInformation PDPage PDPageContentStream]
            [org.apache.pdfbox.pdmodel.common PDRectangle]
+           [org.apache.pdfbox.pdmodel.common PDPageLabelRange PDPageLabels PDMetadata]
            [org.apache.pdfbox.pdmodel.font PDType1Font Standard14Fonts$FontName]
            [org.apache.pdfbox.pdmodel.graphics.image LosslessFactory]
            [org.apache.pdfbox.pdmodel.encryption AccessPermission StandardProtectionPolicy]
@@ -961,6 +962,33 @@
       (.setCropBox page crop)
       (.addPage doc page))
     (->bytes doc)))
+
+(defn rich-metadata-pdf
+  "Two-page PDF with page labels, XMP, viewer preferences, language, and art boxes."
+  ^bytes []
+  (with-open [doc (PDDocument.)]
+    (let [first-page (PDPage. PDRectangle/LETTER)
+          second-page (PDPage. PDRectangle/LETTER)
+          labels (PDPageLabels. doc)
+          range (doto (PDPageLabelRange.)
+                  (.setPrefix "Appendix ")
+                  (.setStyle PDPageLabelRange/STYLE_ROMAN_LOWER))
+          metadata (PDMetadata. doc)]
+      (.addPage doc first-page)
+      (.addPage doc second-page)
+      (.setLabelItem labels 0 range)
+      (.setPageLabels (.getDocumentCatalog doc) labels)
+      (.setLanguage (.getDocumentCatalog doc) "en-US")
+      (.setViewerPreferences (.getDocumentCatalog doc)
+                             (doto (org.apache.pdfbox.pdmodel.interactive.viewerpreferences.PDViewerPreferences.)
+                               (.setDisplayDocTitle true)
+                               (.setCenterWindow true)))
+      (.setBleedBox second-page (PDRectangle. (float 10) (float 10) (float 592) (float 772)))
+      (.setTrimBox second-page (PDRectangle. (float 12) (float 12) (float 590) (float 770)))
+      (.setArtBox second-page (PDRectangle. (float 20) (float 20) (float 580) (float 762)))
+      (.importXMPMetadata metadata (.getBytes "<x:xmpmeta xmlns:x=\"adobe:ns:meta/\"/>" "UTF-8"))
+      (.setMetadata (.getDocumentCatalog doc) metadata)
+      (->bytes doc))))
 
 (defn annotations-pdf
   "Page with one URI link annotation and one text annotation."

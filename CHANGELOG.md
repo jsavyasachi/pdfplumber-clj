@@ -5,6 +5,8 @@
 ### Added
 - Opt-in access to original embedded image stream bytes, filters, and format
   alongside the existing decoded PNG representation.
+- Page labels, XMP metadata, viewer preferences, document language, and bleed,
+  trim, and art boxes are now exposed.
 
 ## [1.12.0] - 2026-08-27
 
