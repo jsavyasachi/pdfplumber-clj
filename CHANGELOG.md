@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.13.0] - 2026-08-27
+
 ### Added
 - Opt-in access to original embedded image stream bytes, filters, and format
   alongside the existing decoded PNG representation.
@@ -25,6 +27,8 @@
 All notable changes to this project are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
+
+## [1.13.0] - 2026-08-27
 
 ## [1.12.0] - 2026-08-27
 
