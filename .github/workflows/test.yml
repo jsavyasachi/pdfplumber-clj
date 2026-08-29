@@ -9,37 +9,5 @@ permissions:
   contents: read
 
 jobs:
-  lint:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install clj-kondo
-        uses: DeLaGuardo/setup-clj-kondo@afc83dbbf4e7e32e04649e29dbf30668d30e9e3e
-        with:
-          version: '2022.01.15'
-      - name: Lint
-        run: clj-kondo --lint src test --fail-level error
-
   test:
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        jdk: ['17', '21']
-        clojure: ['1.11', '1.12']
-    name: jdk ${{ matrix.jdk }} / clojure ${{ matrix.clojure }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: ${{ matrix.jdk }}
-      - uses: DeLaGuardo/setup-clojure@13.6.1
-        with:
-          cli: latest
-      - uses: actions/cache@v4
-        with:
-          path: ~/.m2/repository
-          key: m2-${{ hashFiles('deps.edn') }}
-          restore-keys: m2-
-      - run: clojure -M:${{ matrix.clojure }}:test
+    uses: ./.github/workflows/test-matrix.yml
