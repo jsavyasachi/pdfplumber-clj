@@ -189,11 +189,12 @@
                                 (:boxes page)))))
                  pages))))
 
-(defn- probe [name]
+(defn- probe
   "Extract with pdfplumber-clj. Return {:pages :text :words :tables :objects} or {:handled msg}
    for a graceful :pdfplumber/error, or {:crash class} for anything uncaught."
+  [name]
   (try
-    (pdf/with-pdf [d (io/file corpus-dir name)]
+    (pdf/with-pdf [#_:clj-kondo/ignore d (io/file corpus-dir name)]
       (let [pages (pdf/pages d)]
         {:pages (count pages)
          :text (str/join "\n" (map #(pdf/text d {:page (:page-number %)}) pages))

@@ -59,7 +59,7 @@
 
 (defn- child-parts [page-index inherited-page kids]
   (reduce
-   (fn [{:keys [mcids children] :as result} kid]
+   (fn [result kid]
      (cond
        (integer? kid)
        (update result :mcids conj [inherited-page (int kid)])

@@ -20,7 +20,6 @@
 
 (def ^:private default-tolerance 3.0)
 (def ^:private default-line-dir :ttb)
-(def ^:private default-char-dir :ltr)
 
 (defn- matrix-values [^Matrix matrix]
   [(double (.getScaleX matrix))
@@ -67,7 +66,7 @@
 
 (defn- tp->char [^TextPosition tp page-no page-width page-height rotation doctop-offset]
   (let [text (text-for-position tp)
-        [scale-x shear-y shear-x scale-y translate-x translate-y :as matrix]
+        [scale-x shear-y shear-x scale-y _ translate-y :as matrix]
         (matrix-values (.getTextMatrix tp))
         raw-x0 (double (.getXDirAdj tp))
         w (double (.getWidthDirAdj tp))
@@ -366,7 +365,7 @@
    retain whitespace.
    A whitespace char or a gap wider than `x-tol` starts a new word."
   [line opts]
-  (let [{:keys [x-tolerance keep-blank-chars extra-attrs
+  (let [{:keys [keep-blank-chars extra-attrs
                 split-at-punctuation use-text-flow]} opts
         [_ char-dir] (directions opts (first line))
         ordered (if use-text-flow line

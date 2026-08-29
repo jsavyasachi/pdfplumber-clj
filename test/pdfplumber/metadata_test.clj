@@ -5,7 +5,7 @@
 
 (deftest metadata-extraction
   (testing "document information fields"
-    (pdf/with-pdf [d (fix/pdf-with-metadata {:title "Q2 Statement"
+    (pdf/with-pdf [#_:clj-kondo/ignore d (fix/pdf-with-metadata {:title "Q2 Statement"
                                              :author "Acme Bank"
                                              :subject "Account"})]
       (let [m (pdf/metadata d)]

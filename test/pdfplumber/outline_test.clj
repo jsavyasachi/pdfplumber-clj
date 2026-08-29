@@ -1,5 +1,5 @@
 (ns pdfplumber.outline-test
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [clojure.test :refer [deftest is]]
             [pdfplumber.document :as document]
             [pdfplumber.fixtures :as fixtures]
             [pdfplumber.outline :as outline])

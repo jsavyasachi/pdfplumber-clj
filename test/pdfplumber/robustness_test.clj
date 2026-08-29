@@ -16,7 +16,7 @@
             (is (= :parse-failed (:pdfplumber/error (ex-data e))))))))))
 
 (deftest large-generated-regression
-  (pdf/with-pdf [doc (fix/multi-page-pdf (map #(str "page-" %) (range 64)))]
+  (pdf/with-pdf [#_:clj-kondo/ignore doc (fix/multi-page-pdf (map #(str "page-" %) (range 64)))]
     (is (= 64 (count (pdf/pages doc))))
     (is (= "page-63" (pdf/text doc {:page 64})))
     (is (= 64 (count (into [] (reducible/reducible-words doc)))))))

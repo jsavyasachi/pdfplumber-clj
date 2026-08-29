@@ -21,7 +21,7 @@
 
 (deftest words-golden
   (let [expected (edn/read-string (slurp (io/resource "golden/simple-words.edn")))]
-    (pdf/with-pdf [d (fix/simple-text-pdf)]
+    (pdf/with-pdf [#_:clj-kondo/ignore d (fix/simple-text-pdf)]
       (let [actual (pdf/words d)]
         (is (= (count expected) (count actual)))
         (doseq [[e a] (map vector expected actual)]

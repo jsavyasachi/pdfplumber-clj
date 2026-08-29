@@ -102,7 +102,7 @@
 (deftest with-pdf-lifecycle
   (let [bs (fix/simple-text-pdf)
         captured (atom nil)
-        result (pdf/with-pdf [d (ByteArrayInputStream. bs)]
+        result (pdf/with-pdf [#_:clj-kondo/ignore d (ByteArrayInputStream. bs)]
                  (reset! captured d)
                  (.getNumberOfPages ^PDDocument d))]
     (testing "returns body value"

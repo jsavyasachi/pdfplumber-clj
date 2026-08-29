@@ -9,7 +9,7 @@
            [org.apache.pdfbox.util Matrix]))
 
 (deftest chars-extraction
-  (pdf/with-pdf [d (fix/simple-text-pdf)]
+  (pdf/with-pdf [#_:clj-kondo/ignore d (fix/simple-text-pdf)]
     (let [cs (pdf/chars d)]
       (testing "captures every glyph (ignoring spacing)"
         (is (= "HelloPDF" (str/replace (apply str (map :text cs)) #"\s" ""))))
@@ -107,11 +107,11 @@
 
 (deftest content-flipped-bbox-uses-font-box
   (pdf/with-pdf [d (fix/content-flipped-text-pdf)]
-    (let [c (first (pdf/chars d))]
-      (let [font (PDType1Font. Standard14Fonts$FontName/HELVETICA)
-            descent (* (double (.getDescent (.getFontDescriptor font))) 0.001 12.0)
-            expected-bottom (- 612.0 (- 81.502 (+ descent 12.0)))]
-        (is (< (Math/abs (- (:bottom c) expected-bottom)) 0.01))))))
+    (let [c (first (pdf/chars d))
+          font (PDType1Font. Standard14Fonts$FontName/HELVETICA)
+          descent (* (double (.getDescent (.getFontDescriptor font))) 0.001 12.0)
+          expected-bottom (- 612.0 (- 81.502 (+ descent 12.0)))]
+      (is (< (Math/abs (- (:bottom c) expected-bottom)) 0.01)))))
 
 (deftest rotated-word-sorting-breaks-on-overlapping-space
   (let [chars [{:text " " :x0 10.0 :top 72.0 :x1 20.0 :bottom 74.4 :upright false}

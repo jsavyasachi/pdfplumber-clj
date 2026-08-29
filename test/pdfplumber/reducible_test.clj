@@ -1,5 +1,6 @@
 (ns pdfplumber.reducible-test
   (:require [clojure.test :refer [deftest is testing]]
+            [clojure.string]
             [pdfplumber.core :as pdf]
             [pdfplumber.fixtures :as fix]
             [pdfplumber.reducible :as r]))
@@ -11,7 +12,7 @@
                    r/reducible-images r/reducible-annots])))
 
 (deftest reducibles-match-page-scoped-eager-extraction
-  (pdf/with-pdf [doc (fix/multi-page-pdf ["first page" "second page"])]
+  (pdf/with-pdf [#_:clj-kondo/ignore doc (fix/multi-page-pdf ["first page" "second page"])]
     (let [opts {:page 2}]
       (is (= (pdf/chars doc opts)
              (into [] (r/reducible-chars doc opts))))

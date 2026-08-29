@@ -1,6 +1,5 @@
 (ns pdfplumber.text-transitive-test
-  (:require [clojure.test :refer [deftest is]]
-            [pdfplumber.text :as text]))
+  (:require [clojure.test :refer [deftest is]]))
 
 (deftest clusters-transitive-top-shifts
   (let [chars (map-indexed (fn [i letter]

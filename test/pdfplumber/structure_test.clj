@@ -35,7 +35,7 @@
     doc))
 
 (deftest untagged-document-has-empty-structure
-  (pdf/with-pdf [doc (fix/simple-text-pdf)]
+  (pdf/with-pdf [#_:clj-kondo/ignore doc (fix/simple-text-pdf)]
     (is (= [] (structure/structure-tree doc)))
     (is (= [] (structure/page-structure-tree doc 1)))
     (is (= [] (structure/character-associations doc)))

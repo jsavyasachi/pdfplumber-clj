@@ -1,7 +1,8 @@
 (ns pdfplumber.objects-test
   (:require [clojure.test :refer [deftest testing is]]
             [pdfplumber.core :as pdf]
-            [pdfplumber.fixtures :as fix])
+            [pdfplumber.fixtures :as fix]
+            [pdfplumber.objects])
   (:import [org.apache.pdfbox.cos COSFloat COSName]
            [org.apache.pdfbox.pdmodel PDDocument PDPage]
            [org.apache.pdfbox.pdmodel.common PDRectangle]
@@ -13,7 +14,7 @@
   (first (filter #(and (= :line (:type %)) (= orientation (:orientation %))) objs)))
 
 (deftest line-extraction
-  (pdf/with-pdf [d (fix/ruled-pdf)]
+  (pdf/with-pdf [#_:clj-kondo/ignore d (fix/ruled-pdf)]
     (let [lines (pdf/objects d {:types #{:line}})]
       (testing "horizontal and vertical rules are found and classified"
         (is (= 2 (count lines)))
@@ -314,5 +315,5 @@
       (is (= "customer" (:field-name widget)))
       (is (= "Ada Lovelace" (:field-value widget)))
       (is (= :text (:field-type widget)))))
-  (pdf/with-pdf [doc (fix/annotations-pdf)]
+  (pdf/with-pdf [#_:clj-kondo/ignore doc (fix/annotations-pdf)]
     (is (every? #(not (contains? % :field-name)) (pdf/annots doc)))))

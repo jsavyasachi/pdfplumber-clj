@@ -263,5 +263,5 @@
     (cond
       (:help opts) (println usage)
       (:error opts) (println (str (:error opts) "\n\n" usage))
-      :else (pdf/with-pdf [doc (:path opts)]
+      :else (pdf/with-pdf [#_:clj-kondo/ignore doc (:path opts)]
               (print (render doc opts))))))

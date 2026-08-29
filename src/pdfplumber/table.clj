@@ -153,14 +153,14 @@
             box (.getMediaBox page)]
         [0.0 0.0 (double (.getWidth box)) (double (.getHeight box))])))
 
-(defn- explicit-v-edge [entry [x0 top x1 bottom]]
+(defn- explicit-v-edge [entry [_ top _ bottom]]
   (if (number? entry)
     {:x (double entry) :top top :bottom bottom}
     {:x (double (or (:x entry) (:x0 entry)))
      :top (double (or (:top entry) top))
      :bottom (double (or (:bottom entry) bottom))}))
 
-(defn- explicit-h-edge [entry [x0 top x1 bottom]]
+(defn- explicit-h-edge [entry [x0 _ x1 _]]
   (if (number? entry)
     {:y (double entry) :x0 x0 :x1 x1}
     {:y (double (or (:y entry) (:top entry)))
@@ -328,22 +328,22 @@
                      (let [x0 (reduce min (map :x vertical))
                            x1 (reduce max (map :x vertical))]
                        (map #(assoc % :x0 x0 :x1 x1) horizontal))
-                     horizontal)]
-    (let [edges (normalize-edges {:h horizontal :v vertical} opts)
-          x-tolerance (double (or (:intersection-x-tolerance opts)
-                                  (:intersection-tolerance opts)))
-          y-tolerance (double (or (:intersection-y-tolerance opts)
-                                  (:intersection-tolerance opts)))]
-      (if (and (= :lines (:vertical-strategy opts))
+                     horizontal)
+        edges (normalize-edges {:h horizontal :v vertical} opts)
+        x-tolerance (double (or (:intersection-x-tolerance opts)
+                                (:intersection-tolerance opts)))
+        y-tolerance (double (or (:intersection-y-tolerance opts)
+                                (:intersection-tolerance opts)))]
+    (if (and (= :lines (:vertical-strategy opts))
                (= :lines (:horizontal-strategy opts))
                (empty? explicit-v)
                (empty? explicit-h))
-        (let [closed (close-open-edges edges x-tolerance y-tolerance)]
-          (if (recovers-uncovered-words? edges closed words
-                                         x-tolerance y-tolerance)
-            closed
-            edges))
-        edges))))
+      (let [closed (close-open-edges edges x-tolerance y-tolerance)]
+        (if (recovers-uncovered-words? edges closed words
+                                       x-tolerance y-tolerance)
+          closed
+          edges))
+      edges)))
 
 (defn- cell-bounded? [{:keys [h v]} x0 top x1 bottom x-tol y-tol]
   (and (some #(and (<= (Math/abs (- (double (:y %)) top)) y-tol)

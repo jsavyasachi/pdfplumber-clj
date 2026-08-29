@@ -1,5 +1,6 @@
 (ns pdfplumber.table-test
   (:require [clojure.test :refer [deftest testing is]]
+            [clojure.string]
             [pdfplumber.core :as pdf]
             [pdfplumber.fixtures :as fix]
             [pdfplumber.geometry :as g]))
@@ -84,7 +85,7 @@
     (is (= "" (cell-text words chars [0.0 0.0 11.0 10.0] {})))))
 
 (deftest cell-text-reconstructs-from-cell-characters
-  (pdf/with-pdf [d (fix/glyph-crossing-cell-table-pdf)]
+  (pdf/with-pdf [#_:clj-kondo/ignore d (fix/glyph-crossing-cell-table-pdf)]
     (let [cell-text (private-var 'cell-text)
           chars (pdf/chars d {:page 1})
           [a] chars

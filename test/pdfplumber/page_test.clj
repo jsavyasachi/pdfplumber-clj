@@ -4,7 +4,7 @@
             [pdfplumber.fixtures :as fix]))
 
 (deftest crop-restricts-text
-  (pdf/with-pdf [d (fix/simple-text-pdf)]
+  (pdf/with-pdf [#_:clj-kondo/ignore d (fix/simple-text-pdf)]
     (let [hello (first (filter #(= "Hello" (:text %)) (pdf/words d)))
           box [(- (:x0 hello) 1) (- (:top hello) 1) (+ (:x1 hello) 1) (+ (:bottom hello) 1)]
           view (pdf/crop-page d {:page 1 :bbox box})]

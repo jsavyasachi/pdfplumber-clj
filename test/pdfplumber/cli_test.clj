@@ -44,7 +44,7 @@
     (is (string? (:error (cli/parse-args ["sample.pdf" "--pages" "nope"]))))))
 
 (deftest render-json
-  (pdf/with-pdf [doc (fix/multi-page-pdf ["one" "two" "three"])]
+  (pdf/with-pdf [#_:clj-kondo/ignore doc (fix/multi-page-pdf ["one" "two" "three"])]
     (let [output (cli/render doc {:format :json
                                   :pages [1 3]
                                   :types [:char]
