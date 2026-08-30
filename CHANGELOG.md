@@ -4,6 +4,15 @@ All notable changes to this project are documented here. Format follows [Keep a 
 
 ## [Unreleased]
 
+## [1.13.1] - 2026-08-30
+
+### Fixed
+
+- Repair the CHANGELOG, which had duplicated Unreleased, 1.13.0, and 1.12.0
+  headings with the 1.12.0 entries split across two blocks and the introduction
+  stranded mid-file. Release-note extraction could select an incomplete section.
+
+
 ## [1.13.0] - 2026-08-27
 
 ### Added
