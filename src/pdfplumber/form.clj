@@ -149,9 +149,13 @@
    Text and scalar choice values are strings; multi-select choices accept a
    collection of strings. Checkbox values are booleans or the checkbox on-value."
   [^PDDocument doc values]
-  (when-let [^PDAcroForm form (acro-form doc)]
-    (doseq [[name value] values]
-      (set-field-value! (required-field form ^String name) value)))
+  (let [^PDAcroForm form (acro-form doc)]
+    (when (and (seq values) (nil? form))
+      (throw (ex-info "Document has no AcroForm"
+                      {:pdfplumber/error :no-acroform})))
+    (when form
+      (doseq [[name value] values]
+        (set-field-value! (required-field form ^String name) value))))
   (refresh-appearances doc)
   doc)
 

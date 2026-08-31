@@ -105,6 +105,14 @@
     (is (= [] (form/form-fields doc)))
     (is (= {} (form/field-values doc)))))
 
+(deftest setting-values-without-acroform-throws
+  (with-open [^PDDocument doc (pdf/open-pdf (fix/simple-text-pdf))]
+    (try
+      (form/set-values doc {"missing" "value"})
+      (is false "set-values should reject a non-empty update without an AcroForm")
+      (catch clojure.lang.ExceptionInfo error
+        (is (= :no-acroform (:pdfplumber/error (ex-data error))))))))
+
 (deftest sets-form-values-and-refreshes-appearances
   (with-open [doc (form-doc)]
     (.setReadOnly ^PDCheckBox (.getField (.getAcroForm (.getDocumentCatalog doc)) "profile.active") false)
