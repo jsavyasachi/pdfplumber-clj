@@ -529,7 +529,8 @@
   ([doc] (extract-text-lines doc {}))
   ([doc opts]
    (let [{:keys [words groups]} (word-data doc opts)
-         return-chars (not= false (or (:return-chars opts) (:return_chars opts)))]
+         return-chars (not (or (= false (:return-chars opts))
+                               (= false (:return_chars opts))))]
      (mapv (fn [line-words line-groups]
              (let [cs (vec (mapcat identity line-groups))]
                (cond-> (merge {:text (str/join " " (map :text line-words))

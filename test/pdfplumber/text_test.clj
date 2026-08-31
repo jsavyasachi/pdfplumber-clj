@@ -198,6 +198,17 @@
         (is (= ["second line"]
                (mapv :text (search-var d "second line" {:regex false}))))))))
 
+(deftest return-chars-option-is-honored
+  (pdf/with-pdf [d (fix/advanced-text-pdf)]
+    (let [default-line (first (text/extract-text-lines d))
+          kebab-line (first (text/extract-text-lines d {:return-chars false}))
+          snake-line (first (text/extract-text-lines d {:return_chars false}))
+          explicit-true-line (first (text/extract-text-lines d {:return-chars true}))]
+      (is (contains? default-line :chars))
+      (is (not (contains? kebab-line :chars)))
+      (is (not (contains? snake-line :chars)))
+      (is (contains? explicit-true-line :chars)))))
+
 (deftest character-deduplication
   (pdf/with-pdf [d (fix/duplicate-text-pdf)]
     (let [dedupe-var (ns-resolve 'pdfplumber.core 'dedupe-chars)]
