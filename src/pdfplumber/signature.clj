@@ -9,8 +9,9 @@
            [java.lang ReflectiveOperationException]
            [java.lang.reflect Field]
            [java.security Provider Security]
-           [java.util Calendar]
+           [java.util Calendar Locale]
            [org.bouncycastle.cert X509CertificateHolder]
+           [org.bouncycastle.util.encoders Hex]
            [org.bouncycastle.cms CMSSignedData CMSProcessableByteArray
             SignerInformation SignerInformationVerifier]
            [org.bouncycastle.cms.jcajce JcaSimpleSignerInfoVerifierBuilder]
@@ -106,8 +107,15 @@
        :trust-status :invalid
        :revocation-checked? false})))
 
+(defn- contents-gap?
+  [^PDSignature signature ^bytes source ^long start ^long end]
+  (let [serialized (str "<" (Hex/toHexString (.getContents signature)) ">")
+        gap (String. source (int start) (int (- end start)) "ISO-8859-1")]
+    (and (= (count serialized) (- end start))
+         (= serialized (.toLowerCase gap Locale/ROOT)))))
+
 (defn- whole-document-range?
-  [byte-range ^long length]
+  [^PDSignature signature ^bytes source byte-range]
   (and (= 4 (count byte-range))
        (let [[first-offset first-length second-offset second-length]
              (mapv long byte-range)]
@@ -115,7 +123,8 @@
               (not (neg? first-length))
               (> second-offset (+ first-offset first-length))
               (not (neg? second-length))
-              (= length (+ second-offset second-length))))))
+              (= (alength source) (+ second-offset second-length))
+              (contents-gap? signature source (+ first-offset first-length) second-offset)))))
 
 (defn- signature-map
   [^PDSignature signature source]
@@ -151,7 +160,7 @@
       (some? source)
       (assoc :covers-whole-document?
              (boolean (and byte-range
-                           (whole-document-range? byte-range (alength ^bytes source)))))
+                           (whole-document-range? signature source byte-range))))
 
       (some? source)
       (merge (verify-cms signature source))

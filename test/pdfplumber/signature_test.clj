@@ -15,6 +15,7 @@
            [org.bouncycastle.cms CMSSignedDataGenerator CMSProcessableByteArray]
            [org.bouncycastle.cms.jcajce JcaSignerInfoGeneratorBuilder]
            [org.bouncycastle.jce.provider BouncyCastleProvider]
+           [org.bouncycastle.util.encoders Hex]
            [org.bouncycastle.operator.jcajce JcaContentSignerBuilder
             JcaDigestCalculatorProviderBuilder]
            [org.apache.pdfbox.pdmodel PDDocument PDPage]
@@ -120,10 +121,25 @@
         (testing "byte-range integrity signal"
           (is (= [0 64 128 (- (alength pdf) 128)]
                  (:byte-range result)))
-          (is (true? (:covers-whole-document? result))))
+          ;; This fixture's fabricated ByteRange gap does not match its Contents span.
+          (is (false? (:covers-whole-document? result))))
         (testing "verification is explicit for an invalid signature"
           (is (false? (:digest-valid? result)))
           (is (= :invalid (:trust-status result)))
           (is (contains? result :certificate-chain))
           (is (contains? result :signer-identity)))
         (is (true? (signature/signed? doc)))))))
+
+(deftest genuine-whole-document-signature-test
+  (let [contents (byte-array 32)
+        prefix "signed-prefix"
+        serialized (str "<" (Hex/toHexString contents) ">")
+        suffix "unsigned-suffix"
+        source (.getBytes (str prefix serialized suffix) "ISO-8859-1")
+        signature (doto (PDSignature.)
+                    (.setContents contents)
+                    (.setByteRange (int-array [0 (count prefix)
+                                               (+ (count prefix) (count serialized))
+                                               (count suffix)])))
+        signature-map (ns-resolve 'pdfplumber.signature 'signature-map)]
+    (is (true? (:covers-whole-document? (signature-map signature source))))))
