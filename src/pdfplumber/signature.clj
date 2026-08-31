@@ -70,17 +70,25 @@
    :not-before (.toInstant (.getNotBefore certificate))
    :not-after (.toInstant (.getNotAfter certificate))})
 
+(def ^:private max-certificate-chain-length 100)
+
 (defn- ordered-certificate-chain
   [^X509CertificateHolder signer-cert certificates]
   (loop [current signer-cert
-         chain []]
-    (when current
+         chain []
+         visited #{}]
+    (cond
+      (nil? current) chain
+      (contains? visited current) nil
+      (>= (count chain) max-certificate-chain-length) nil
+      :else
       (let [chain (conj chain current)
+            visited (conj visited current)
             issuer (first (filter #(= (.getIssuer current) (.getSubject ^X509CertificateHolder %))
                                   certificates))]
         (if (= (.getSubject current) (.getIssuer current))
           chain
-          (recur issuer chain))))))
+          (recur issuer chain visited))))))
 
 (defn- valid-certificate-chain?
   [chain]

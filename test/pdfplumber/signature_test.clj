@@ -90,6 +90,48 @@
                      (.addCertificate (X509CertificateHolder. (.getEncoded certificate))))]
      (.getEncoded (.generate generator (CMSProcessableByteArray. content) false)))))
 
+(defn- cyclic-certificates []
+  (let [provider (BouncyCastleProvider.)
+        key-generator (doto (KeyPairGenerator/getInstance "RSA" provider)
+                        (.initialize 2048))
+        key-pair-a (.generateKeyPair key-generator)
+        key-pair-b (.generateKeyPair key-generator)
+        now (Date.)
+        later (Date. (+ (.getTime now) 60000))
+        name-a (X500Name. "CN=Cycle A")
+        name-b (X500Name. "CN=Cycle B")
+        signer-a (.. (JcaContentSignerBuilder. "SHA256withRSA")
+                     (setProvider provider)
+                     (build (.getPrivate key-pair-a)))
+        signer-b (.. (JcaContentSignerBuilder. "SHA256withRSA")
+                     (setProvider provider)
+                     (build (.getPrivate key-pair-b)))
+        certificate-a (X509CertificateHolder.
+                       (.getEncoded
+                        (.build (JcaX509v3CertificateBuilder.
+                                 name-b BigInteger/ONE now later name-a
+                                 (.getPublic key-pair-a))
+                                signer-b)))
+        certificate-b (X509CertificateHolder.
+                       (.getEncoded
+                        (.build (JcaX509v3CertificateBuilder.
+                                 name-a (BigInteger/valueOf 2) now later name-b
+                                 (.getPublic key-pair-b))
+                                signer-a)))]
+    [certificate-a certificate-b]))
+
+(deftest cyclic-certificate-chain-is-rejected-promptly-test
+  (let [certificates (cyclic-certificates)
+        ordered-chain (ns-resolve 'pdfplumber.signature 'ordered-certificate-chain)
+        valid-chain? (ns-resolve 'pdfplumber.signature 'valid-certificate-chain?)
+        chain (deref (future (ordered-chain (first certificates) certificates))
+                     1000
+                     ::timeout)]
+    (is (not= ::timeout chain)
+        "certificate chain walking must terminate on a cycle")
+    (is (false? (boolean (and (not= ::timeout chain)
+                              (valid-chain? chain)))))))
+
 (deftest valid-cms-signature-test
   (let [content (.getBytes "signed bytes" "UTF-8")
         signature-value (cms-signature content)
