@@ -4,6 +4,34 @@ All notable changes to this project are documented here. Format follows [Keep a 
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-08-30
+
+### Fixed
+
+- Certificate-chain construction stops on repeated certificates and has a
+  length limit, so cyclic certificate data cannot exhaust memory or hang the
+  caller.
+
+### Changed
+
+- Breaking: `:covers-whole-document?` is true only when the signed ByteRange
+  gap exactly matches the signature `Contents` span. Callers must no longer
+  treat a true value as possible when that exact span cannot be determined.
+- Breaking: `:chain-valid?` now reports cryptographic certificate validation,
+  including issuer signatures, validity periods, basic constraints, and key
+  usage. Callers must account for expired, self-signed, or otherwise invalid
+  chains; trust anchors and revocation remain unchecked, and
+  `:revocation-checked?` still reports that status.
+- Breaking: every CMS signer must verify for `:digest-valid?` to be true, and
+  per-signer results are available under `:signers`. Callers that need to
+  identify which signer failed must inspect that map.
+- Breaking: `set-values` raises `:no-acroform` when a non-empty values map is
+  supplied for a document without a form. Callers must provide an AcroForm or
+  handle this error; an empty map remains a no-op.
+- `:return-chars false` now suppresses `:chars` in both kebab-case and
+  snake_case option spellings. Callers relying on the previously attached
+  characters must omit the opt-out or request them explicitly.
+
 ## [1.13.1] - 2026-08-30
 
 ### Fixed

@@ -44,13 +44,13 @@ content, and page object counts and boxes. The repository does not commit the co
 deps.edn
 
 ```clojure
-net.clojars.savya/pdfplumber-clj {:mvn/version "1.13.1"}
+net.clojars.savya/pdfplumber-clj {:mvn/version "2.0.0"}
 ```
 
 Leiningen
 
 ```clojure
-[net.clojars.savya/pdfplumber-clj "1.13.1"]
+[net.clojars.savya/pdfplumber-clj "2.0.0"]
 ```
 
 Requires JDK 17+.
