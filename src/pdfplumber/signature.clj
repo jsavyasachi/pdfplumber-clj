@@ -9,12 +9,14 @@
            [java.lang ReflectiveOperationException]
            [java.lang.reflect Field]
            [java.security Provider Security]
-           [java.util Calendar Locale]
+           [java.util Calendar Date Locale]
            [org.bouncycastle.cert X509CertificateHolder]
+           [org.bouncycastle.cert.jcajce JcaX509CertificateConverter]
            [org.bouncycastle.util.encoders Hex]
            [org.bouncycastle.cms CMSSignedData CMSProcessableByteArray
             SignerInformation SignerInformationVerifier]
            [org.bouncycastle.cms.jcajce JcaSimpleSignerInfoVerifierBuilder]
+           [org.bouncycastle.operator.jcajce JcaContentVerifierProviderBuilder]
            [org.bouncycastle.jce.provider BouncyCastleProvider]
            [org.apache.pdfbox.io RandomAccessRead]
            [org.apache.pdfbox.pdmodel PDDocument]
@@ -68,6 +70,41 @@
    :not-before (.toInstant (.getNotBefore certificate))
    :not-after (.toInstant (.getNotAfter certificate))})
 
+(defn- ordered-certificate-chain
+  [^X509CertificateHolder signer-cert certificates]
+  (loop [current signer-cert
+         chain []]
+    (when current
+      (let [chain (conj chain current)
+            issuer (first (filter #(= (.getIssuer current) (.getSubject ^X509CertificateHolder %))
+                                  certificates))]
+        (if (= (.getSubject current) (.getIssuer current))
+          chain
+          (recur issuer chain))))))
+
+(defn- valid-certificate-chain?
+  [chain]
+  (when (seq chain)
+    (let [converter (doto (JcaX509CertificateConverter.)
+                      (.setProvider bc-provider))
+          certificates (mapv #(.getCertificate converter %) chain)
+          ca? (fn [certificate]
+                (and (<= 0 (.getBasicConstraints certificate))
+                     (or (nil? (.getKeyUsage certificate))
+                         (true? (aget (.getKeyUsage certificate) 5)))))]
+      (try
+        (every? true?
+                (concat
+                (map (fn [certificate]
+                       (try (.checkValidity certificate (Date.)) true
+                            (catch Exception _ false)))
+                     certificates)
+                 (map (fn [[child issuer]]
+                        (and (ca? issuer)
+                             (do (.verify child (.getPublicKey issuer) bc-provider) true)))
+                      (partition 2 1 (conj (vec certificates) (last certificates))))))
+        (catch Exception _ false)))))
+
 (defn- verify-cms [^PDSignature signature ^bytes source]
   (try
     (let [signed-content (.getSignedContent signature source)
@@ -78,6 +115,8 @@
           ^X509CertificateHolder signer-cert
           (first (when signer (.getMatches certificates (.getSID signer))))
           matches (.getMatches certificates nil)
+          ordered-chain (when signer-cert
+                          (ordered-certificate-chain signer-cert matches))
           ^JcaSimpleSignerInfoVerifierBuilder verifier-builder
           (JcaSimpleSignerInfoVerifierBuilder.)
           ^SignerInformationVerifier verifier
@@ -87,16 +126,9 @@
           digest-valid? (boolean (and signer-cert
                                       (.verify signer verifier)))]
       {:signer-identity (some-> signer-cert .getSubject str)
-       :certificate-chain (mapv certificate-map matches)
+       :certificate-chain (mapv certificate-map (or ordered-chain []))
        :digest-valid? digest-valid?
-       :chain-valid? (boolean (and signer-cert
-                                    (every? true?
-                                            (map (fn [pair]
-                                                   (let [^X509CertificateHolder child (first pair)
-                                                         ^X509CertificateHolder issuer (second pair)]
-                                                     (= (.getIssuer child)
-                                                        (.getSubject issuer))))
-                                                 (partition 2 1 matches)))))
+       :chain-valid? (boolean (valid-certificate-chain? ordered-chain))
        :trust-status (if digest-valid? :untrusted :invalid)
        :revocation-checked? false})
     (catch Exception _

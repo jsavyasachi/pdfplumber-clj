@@ -61,31 +61,34 @@
 (defn- fake-signed-pdf ^bytes []
   (fake-signed-pdf-with-length 2048))
 
-(defn- cms-signature [^bytes content]
-  (let [provider (BouncyCastleProvider.)
-        key-generator (doto (KeyPairGenerator/getInstance "RSA" provider)
-                        (.initialize 2048))
-        key-pair (.generateKeyPair key-generator)
-        name (X500Name. "CN=Test Signer")
-        now (Date.)
-        builder (JcaX509v3CertificateBuilder. name BigInteger/ONE now
-                                              (Date. (+ (.getTime now) 60000))
-                                              name (.getPublic key-pair))
-        signer (.. (JcaContentSignerBuilder. "SHA256withRSA")
-                   (setProvider provider)
-                   (build (.getPrivate key-pair)))
-        certificate (.. (JcaX509CertificateConverter.)
-                        (setProvider provider)
-                        (getCertificate (.build builder signer)))
-        digest-provider (.. (JcaDigestCalculatorProviderBuilder.)
-                            (setProvider provider)
-                            (build))
-        signer-info (.. (JcaSignerInfoGeneratorBuilder. digest-provider)
-                        (build signer certificate))
-        generator (doto (CMSSignedDataGenerator.)
-                    (.addSignerInfoGenerator signer-info)
-                    (.addCertificate (X509CertificateHolder. (.getEncoded certificate))))]
-    (.getEncoded (.generate generator (CMSProcessableByteArray. content) false))))
+(defn- cms-signature
+  ([^bytes content]
+   (let [now (Date.)]
+     (cms-signature content now (Date. (+ (.getTime now) 60000)))))
+  ([^bytes content ^Date not-before ^Date not-after]
+   (let [provider (BouncyCastleProvider.)
+         key-generator (doto (KeyPairGenerator/getInstance "RSA" provider)
+                         (.initialize 2048))
+         key-pair (.generateKeyPair key-generator)
+         name (X500Name. "CN=Test Signer")
+         builder (JcaX509v3CertificateBuilder. name BigInteger/ONE not-before
+                                               not-after
+                                               name (.getPublic key-pair))
+         signer (.. (JcaContentSignerBuilder. "SHA256withRSA")
+                    (setProvider provider)
+                    (build (.getPrivate key-pair)))
+         certificate (.. (JcaX509CertificateConverter.)
+                         (setProvider provider)
+                         (getCertificate (.build builder signer)))
+         digest-provider (.. (JcaDigestCalculatorProviderBuilder.)
+                             (setProvider provider)
+                             (build))
+         signer-info (.. (JcaSignerInfoGeneratorBuilder. digest-provider)
+                         (build signer certificate))
+         generator (doto (CMSSignedDataGenerator.)
+                     (.addSignerInfoGenerator signer-info)
+                     (.addCertificate (X509CertificateHolder. (.getEncoded certificate))))]
+     (.getEncoded (.generate generator (CMSProcessableByteArray. content) false)))))
 
 (deftest valid-cms-signature-test
   (let [content (.getBytes "signed bytes" "UTF-8")
@@ -100,6 +103,16 @@
     (is (= :untrusted (:trust-status result)))
     (is (false? (:revocation-checked? result)))
     (is (= 1 (count (:certificate-chain result))))))
+
+(deftest lone-signer-certificate-is-not-chain-valid-test
+  (let [content (.getBytes "signed bytes" "UTF-8")
+        signature-value (cms-signature content)
+        sig (doto (PDSignature.)
+              (.setByteRange (int-array [0 (alength content) (alength content) 0]))
+              (.setContents signature-value))
+        verify-cms (ns-resolve 'pdfplumber.signature 'verify-cms)
+        result (verify-cms sig content)]
+    (is (false? (:chain-valid? result)))))
 
 (deftest unsigned-document-test
   (with-open [doc (document/open-pdf (fix/simple-text-pdf))]
