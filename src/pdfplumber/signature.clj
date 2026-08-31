@@ -14,9 +14,8 @@
            [org.bouncycastle.cert.jcajce JcaX509CertificateConverter]
            [org.bouncycastle.util.encoders Hex]
            [org.bouncycastle.cms CMSSignedData CMSProcessableByteArray
-            SignerInformation SignerInformationVerifier]
+            SignerInformation]
            [org.bouncycastle.cms.jcajce JcaSimpleSignerInfoVerifierBuilder]
-           [org.bouncycastle.operator.jcajce JcaContentVerifierProviderBuilder]
            [org.bouncycastle.jce.provider BouncyCastleProvider]
            [org.apache.pdfbox.io RandomAccessRead]
            [org.apache.pdfbox.pdmodel PDDocument]
@@ -141,11 +140,8 @@
           ordered-chain (when signer-cert
                           (ordered-certificate-chain signer-cert matches))
           ^JcaSimpleSignerInfoVerifierBuilder verifier-builder
-          (JcaSimpleSignerInfoVerifierBuilder.)
-          ^SignerInformationVerifier verifier
-          (do
-            (.setProvider ^JcaSimpleSignerInfoVerifierBuilder verifier-builder bc-provider)
-            verifier-builder)
+          (doto (JcaSimpleSignerInfoVerifierBuilder.)
+            (.setProvider bc-provider))
           signer-results (mapv #(verify-signer % certificates verifier-builder) signers)
           digest-valid? (boolean (and (seq signer-results)
                                       (every? :digest-valid? signer-results)))]
