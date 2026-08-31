@@ -104,6 +104,53 @@
     (is (false? (:revocation-checked? result)))
     (is (= 1 (count (:certificate-chain result))))))
 
+(defn- cms-signature-with-missing-second-certificate [^bytes content]
+  (let [provider (BouncyCastleProvider.)
+        key-generator (doto (KeyPairGenerator/getInstance "RSA" provider)
+                        (.initialize 2048))
+        digest-provider (.. (JcaDigestCalculatorProviderBuilder.)
+                            (setProvider provider)
+                            (build))
+        signer-data (repeatedly
+                     2
+                     (fn []
+                       (let [key-pair (.generateKeyPair key-generator)
+                             name (X500Name. "CN=Test Signer")
+                             now (Date.)
+                             builder (JcaX509v3CertificateBuilder.
+                                      name BigInteger/ONE now
+                                      (Date. (+ (.getTime now) 60000))
+                                      name (.getPublic key-pair))
+                             signer (.. (JcaContentSignerBuilder. "SHA256withRSA")
+                                        (setProvider provider)
+                                        (build (.getPrivate key-pair)))
+                             certificate (.. (JcaX509CertificateConverter.)
+                                             (setProvider provider)
+                                             (getCertificate (.build builder signer)))]
+                         [signer certificate])))
+        generator (doto (CMSSignedDataGenerator.)
+                    (.addSignerInfoGenerator
+                     (.. (JcaSignerInfoGeneratorBuilder. digest-provider)
+                         (build (first (first signer-data)) (second (first signer-data)))))
+                    (.addSignerInfoGenerator
+                     (.. (JcaSignerInfoGeneratorBuilder. digest-provider)
+                         (build (first (second signer-data)) (second (second signer-data)))))
+                    (.addCertificate
+                     (X509CertificateHolder. (.getEncoded (second (first signer-data))))))]
+    (.getEncoded (.generate generator (CMSProcessableByteArray. content) false))))
+
+(deftest all-cms-signers-must-verify-test
+  (let [content (.getBytes "signed bytes" "UTF-8")
+        signature-value (cms-signature-with-missing-second-certificate content)
+        sig (doto (PDSignature.)
+              (.setByteRange (int-array [0 (alength content) (alength content) 0]))
+              (.setContents signature-value))
+        verify-cms (ns-resolve 'pdfplumber.signature 'verify-cms)
+        result (verify-cms sig content)]
+    (is (false? (:digest-valid? result)))
+    (is (= 2 (count (:signers result))))
+    (is (= [false true] (sort (mapv :digest-valid? (:signers result)))))))
+
 (deftest lone-signer-certificate-is-not-chain-valid-test
   (let [content (.getBytes "signed bytes" "UTF-8")
         signature-value (cms-signature content)

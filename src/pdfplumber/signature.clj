@@ -105,13 +105,28 @@
                       (partition 2 1 (conj (vec certificates) (last certificates))))))
         (catch Exception _ false)))))
 
+(defn- verify-signer
+  [^SignerInformation signer certificates
+   ^JcaSimpleSignerInfoVerifierBuilder verifier-builder]
+  (let [^X509CertificateHolder certificate
+        (first (.getMatches certificates (.getSID signer)))]
+    (try
+      {:signer-identity (some-> certificate .getSubject str)
+       :digest-valid? (boolean (and certificate
+                                     (.verify signer
+                                              (.build verifier-builder certificate))))}
+      (catch Exception _
+        {:signer-identity (some-> certificate .getSubject str)
+         :digest-valid? false}))))
+
 (defn- verify-cms [^PDSignature signature ^bytes source]
   (try
     (let [signed-content (.getSignedContent signature source)
           cms (CMSSignedData. (CMSProcessableByteArray. signed-content)
                               (.getContents signature))
           certificates (.getCertificates cms)
-          ^SignerInformation signer (first (.getSigners (.getSignerInfos cms)))
+          signers (vec (.getSigners (.getSignerInfos cms)))
+          ^SignerInformation signer (first signers)
           ^X509CertificateHolder signer-cert
           (first (when signer (.getMatches certificates (.getSID signer))))
           matches (.getMatches certificates nil)
@@ -122,11 +137,13 @@
           ^SignerInformationVerifier verifier
           (do
             (.setProvider ^JcaSimpleSignerInfoVerifierBuilder verifier-builder bc-provider)
-            (.build ^JcaSimpleSignerInfoVerifierBuilder verifier-builder signer-cert))
-          digest-valid? (boolean (and signer-cert
-                                      (.verify signer verifier)))]
+            verifier-builder)
+          signer-results (mapv #(verify-signer % certificates verifier-builder) signers)
+          digest-valid? (boolean (and (seq signer-results)
+                                      (every? :digest-valid? signer-results)))]
       {:signer-identity (some-> signer-cert .getSubject str)
        :certificate-chain (mapv certificate-map (or ordered-chain []))
+       :signers signer-results
        :digest-valid? digest-valid?
        :chain-valid? (boolean (valid-certificate-chain? ordered-chain))
        :trust-status (if digest-valid? :untrusted :invalid)
@@ -134,6 +151,7 @@
     (catch Exception _
       {:signer-identity nil
        :certificate-chain []
+       :signers []
        :digest-valid? false
        :chain-valid? false
        :trust-status :invalid
