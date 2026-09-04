@@ -23,12 +23,12 @@
                 :version version
                 :basis @basis
                 :src-dirs ["src"]
-                :scm {:url "https://github.com/jsavyasachi/pdfplumber-clj"
-                      :connection "scm:git:https://github.com/jsavyasachi/pdfplumber-clj.git"
-                      :developerConnection "scm:git:ssh://git@github.com/jsavyasachi/pdfplumber-clj.git"
+                :scm {:url "https://github.com/savyalabs/pdfplumber-clj"
+                      :connection "scm:git:https://github.com/savyalabs/pdfplumber-clj.git"
+                      :developerConnection "scm:git:ssh://git@github.com/savyalabs/pdfplumber-clj.git"
                       :tag (str "v" version)}
                 :pom-data [[:description "Plain-data PDF extraction for Clojure: text, words, characters, and geometric objects."]
-                           [:url "https://github.com/jsavyasachi/pdfplumber-clj"]
+                           [:url "https://github.com/savyalabs/pdfplumber-clj"]
                            [:licenses
                             [:license
                              [:name "Eclipse Public License 2.0"]

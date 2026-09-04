@@ -2,8 +2,8 @@
 
 [![Clojars Project](https://img.shields.io/clojars/v/net.clojars.savya/pdfplumber-clj.svg)](https://clojars.org/net.clojars.savya/pdfplumber-clj)
 [![cljdoc](https://cljdoc.org/badge/net.clojars.savya/pdfplumber-clj)](https://cljdoc.org/d/net.clojars.savya/pdfplumber-clj/CURRENT)
-[![test](https://github.com/jsavyasachi/pdfplumber-clj/actions/workflows/test.yml/badge.svg)](https://github.com/jsavyasachi/pdfplumber-clj/actions/workflows/test.yml)
-[![parity](https://github.com/jsavyasachi/pdfplumber-clj/actions/workflows/parity.yml/badge.svg)](https://github.com/jsavyasachi/pdfplumber-clj/actions/workflows/parity.yml)
+[![test](https://github.com/savyalabs/pdfplumber-clj/actions/workflows/test.yml/badge.svg)](https://github.com/savyalabs/pdfplumber-clj/actions/workflows/test.yml)
+[![parity](https://github.com/savyalabs/pdfplumber-clj/actions/workflows/parity.yml/badge.svg)](https://github.com/savyalabs/pdfplumber-clj/actions/workflows/parity.yml)
 
 Extract and inspect PDFs in Clojure with [Apache PDFBox](https://pdfbox.apache.org).
 This library is the Clojure counterpart to Python's [`pdfplumber`](https://github.com/jsvine/pdfplumber).
